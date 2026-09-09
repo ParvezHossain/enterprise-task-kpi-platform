@@ -70,3 +70,14 @@ processes and the database container were removed after verification.
 Packaged library versions and the actual test classpath matched the documented
 BOM baseline. No domain migrations exist yet, so Flyway's no-migrations warning
 is expected until TICKET-0102.
+
+## Identity repository verification (TICKET-0103 in progress)
+
+`mvn clean verify` passed with six tests after adding the identity schema,
+repositories, four-role development seed, and production seed-isolation coverage.
+The same temporary Maven cache described above was used. Permission seed coverage
+and the completion commit await the exact master-spec permission catalog.
+
+Use `local,dev` to enable the separate development seed location. Normal `local`
+and `docker` startup applies only schema migrations; `prod` overrides accidental
+`dev`/`test` activation. See [database](database.md) for migration history isolation.

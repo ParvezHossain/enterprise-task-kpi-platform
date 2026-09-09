@@ -224,8 +224,8 @@ The test database image is pinned to `postgres:18.6-alpine`, following the
 [PostgreSQL 18 release notes](https://www.postgresql.org/docs/18/release.html).
 The local/docker profiles change the default database host and accept explicit
 runtime and migration credentials. Database health remains enabled; no H2 or
-persistence exclusions are used to make startup pass. Schema migrations begin in
-TICKET-0102; Flyway currently initializes only its history table.
+persistence exclusions are used to make startup pass. The bootstrap originally initialized only Flyway history. TICKET-0103 now adds
+the prerequisite identity schema; OAuth schema migrations remain for TICKET-0102.
 
 See [ADR 0007](decisions/0007-auth-bootstrap-security.md) for the bootstrap access
 policy and [auth-server README](../enterprise-platform/auth-server/README.md)
@@ -234,3 +234,13 @@ Security starters, the `org.springframework.boot.security.autoconfigure` package
 for default-user auto-configuration, Jackson 3's `tools.jackson` test API, and
 Testcontainers 2's `testcontainers-postgresql` artifact and
 `org.testcontainers.postgresql` package.
+
+## Identity persistence (TICKET-0103)
+
+See [ADR 0008](decisions/0008-identity-persistence-and-seed-isolation.md) and
+[database documentation](database.md) for the identity schema, repository bounds,
+and dev/test-only seed locations. No new dependencies are introduced.
+[Spring Data selective repository definitions](https://docs.spring.io/spring-data/jpa/reference/repositories/definition.html)
+support exposing only single-record lookups and writes; Flyway remains the sole
+schema/data initialization mechanism, following
+[Boot database initialization guidance](https://docs.spring.io/spring-boot/how-to/data-initialization.html).

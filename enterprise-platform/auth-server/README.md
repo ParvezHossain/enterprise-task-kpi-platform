@@ -3,7 +3,8 @@
 Java 25 / Spring Boot 4 bootstrap in `com.parvez.auth`. Includes Security,
 Authorization Server, JPA, PostgreSQL, Flyway, Actuator, validation, and springdoc.
 Only `GET /actuator/health` is public. Users, OAuth clients, login/token flows,
-and domain migrations are introduced in later tickets.
+and OAuth migrations are introduced in later tickets. Identity entities and their
+Flyway schema are now available; see [database documentation](../../docs/database.md).
 
 ## Verify
 
@@ -38,9 +39,9 @@ GRANT USAGE ON SCHEMA public TO auth_app;
 ```
 
 The `\password` commands prompt for passwords. This provisions roles and the
-empty database only. Application schema changes and runtime table/sequence grants
-belong to Flyway migrations starting in TICKET-0102. Hibernate uses `validate`;
-Flyway runs normally with no domain migrations yet.
+empty database only. The V1 Flyway migration creates identity tables and grants runtime DML to
+`AUTH_DB_USERNAME`. Hibernate validates the mappings. OAuth tables remain for
+TICKET-0102.
 
 ## Run locally
 
@@ -59,6 +60,11 @@ In another terminal:
 ```sh
 curl --fail --include http://localhost:9000/actuator/health
 ```
+
+For development reference roles, activate `local,dev` instead of `local`. The
+`test` profile also enables seeds; `prod` always excludes the seed location.
+Neither `local` nor `docker` alone seeds data. Use separate development and
+production databases; see the migration guidance linked above.
 
 Expected: HTTP 200 with `"status":"UP"` (Boot may also list health group names).
 No health components or database details

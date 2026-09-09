@@ -33,6 +33,7 @@ class AuthServerApplicationIT {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.placeholders.runtimeRole", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
     }
 
