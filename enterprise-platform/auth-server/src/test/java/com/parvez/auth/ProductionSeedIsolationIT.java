@@ -18,13 +18,15 @@ class ProductionSeedIsolationIT extends PostgresRepositoryTestSupport {
     @Autowired PermissionRepository permissions;
     @Autowired UserRepository users;
     @Autowired Flyway flyway;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
     void productionSchemaValidatesWithoutDevelopmentSeedEvenWithMixedProfiles() {
         assertThat(roles.count()).isZero();
         assertThat(permissions.count()).isZero();
         assertThat(users.count()).isZero();
-        assertThat(flyway.info().applied()).hasSize(1);
+        assertThat(flyway.info().applied()).hasSize(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM oauth2_registered_client", Long.class)).isZero();
         assertThat(flyway.info().applied()[0].getVersion().toString()).isEqualTo("1");
     }
 }

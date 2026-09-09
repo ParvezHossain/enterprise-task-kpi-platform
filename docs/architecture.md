@@ -244,3 +244,50 @@ and dev/test-only seed locations. No new dependencies are introduced.
 support exposing only single-record lookups and writes; Flyway remains the sole
 schema/data initialization mechanism, following
 [Boot database initialization guidance](https://docs.spring.io/spring-boot/how-to/data-initialization.html).
+
+## Registration and password storage (TICKET-0104)
+
+[ADR 0009](decisions/0009-registration-and-password-storage.md) defines the service
+boundary, fixed EMPLOYEE assignment, duplicate handling, and log protection.
+`com.parvez.auth.service` owns registration requests/results and transaction
+coordination; `com.parvez.auth.config.PasswordConfiguration` exposes the encoder.
+
+Security 7.1.1's [versioned Argon2PasswordEncoder source](https://github.com/spring-projects/spring-security/blob/7.1.1/crypto/src/main/java/org/springframework/security/crypto/argon2/Argon2PasswordEncoder.java)
+confirms Argon2id and the supported `defaultsForSpringSecurity_v5_8()` factory.
+[Spring Security password storage guidance](https://docs.spring.io/spring-security/reference/7.0/features/authentication/password-storage.html)
+identifies the Bouncy Castle requirement and recommends deployment-specific cost
+tuning. The [Bouncy Castle release/download page](https://www.bouncycastle.org/download/bouncy-castle-java/)
+lists the 1.85.2 provider for Java 8 and later. We pin `bcprov-jdk18on:1.85.2`
+explicitly because it is absent from [Boot 4.1.1's managed coordinates](https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html).
+Boot-managed Spring and test versions are unchanged. No Security API fallback or
+stack downgrade is needed. Hibernate 7 uses `org.hibernate.orm.jdbc.error` and
+`org.hibernate.orm.jdbc.warn` instead of the older `SqlExceptionHelper` logger;
+application configuration targets the current categories.
+
+## OIDC authorization server (TICKET-0105)
+
+[ADR 0010](decisions/0010-oidc-confidential-pkce-clients.md) selects confidential BFF
+clients with required PKCE to support refresh tokens without a custom grant.
+No dependency versions changed: Boot 4.1.1, Security/Authorization Server 7.1.1,
+Framework 7.0.9 and Bouncy Castle 1.85.2 remain pinned as above.
+
+The [Security 7.1 configuration model](https://docs.spring.io/spring-security/reference/servlet/oauth2/authorization-server/configuration-model.html)
+provides the current DSL, OIDC enablement and JWK-source integration.
+[Spring's PKCE guide](https://docs.spring.io/spring-authorization-server/reference/guides/how-to-pkce.html)
+explains the public-client refresh restriction and recommends BFFs.
+The [7.1.1 JDBC authorization implementation](https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-authorization-server/src/main/java/org/springframework/security/oauth2/server/authorization/JdbcOAuth2AuthorizationService.java)
+uses Jackson 3 by default. Migration V2 copies the table layouts from that exact
+release's packaged SQL resources, applying their PostgreSQL `text`/`timestamptz`
+instructions. JDBC claim collections use `ArrayList` to satisfy the mapper's type
+allowlist; no broad polymorphic deserialization permissions are enabled.
+
+`config.AuthorizationServerConfig` owns protocol wiring and JWT claims;
+`SigningConfiguration` loads/validates external keys and issuer.
+`security.IdentityAuthenticationService` maps database identities to security
+principals and bounded authority snapshots. `BoundedJdbcAuthorizationService`
+adds `LIMIT 2` to the framework's token lookup and rejects multiple matches.
+Single-ID and client-ID lookups are bounded by unique constraints.
+
+OAuth schema V2 and dev/test client seed V2.1 supply the missing OAuth persistence
+prerequisite from TICKET-0102. V1 and V1.1 remain unchanged. The generated login
+page is pulled forward from TICKET-0106 solely to support the full protocol flow.

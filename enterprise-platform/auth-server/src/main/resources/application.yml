@@ -10,6 +10,7 @@ spring:
       maximum-pool-size: 5
       connection-timeout: 5000
   jpa:
+    show-sql: false
     open-in-view: false
     hibernate:
       ddl-auto: validate
@@ -21,13 +22,37 @@ spring:
     locations: classpath:db/migration/schema
     placeholders:
       runtimeRole: ${AUTH_DB_USERNAME}
-  # No users or clients are provisioned by this bootstrap.
+  # Identity login is supplied by IdentityAuthenticationService.
   autoconfigure:
     exclude:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 
+auth:
+  signing:
+    issuer: ${AUTH_ISSUER}
+    private-key: ${AUTH_RSA_PRIVATE_KEY}
+    public-key: ${AUTH_RSA_PUBLIC_KEY}
+    key-id: ${AUTH_RSA_KEY_ID}
+
 server:
   port: ${AUTH_SERVER_PORT:9000}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+
+# SQL bind/extract values and database error details can contain password hashes.
+# Keep these disabled even when enabling general application DEBUG/TRACE logging.
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: OFF
+    org.hibernate.orm.jdbc.extract: OFF
+    org.hibernate.orm.jdbc.error: OFF
+    org.hibernate.orm.jdbc.warn: OFF
+    # Protocol TRACE and JDBC binding can expose codes, tokens and client secrets.
+    org.springframework.security: INFO
+    org.springframework.jdbc.core: INFO
 
 management:
   endpoints:
@@ -66,3 +91,6 @@ spring:
     locations:
       - classpath:db/migration/schema
       - classpath:db/migration/dev-test
+    placeholders:
+      taskClientSecretHash: ${AUTH_TASK_CLIENT_SECRET_HASH}
+      kpiClientSecretHash: ${AUTH_KPI_CLIENT_SECRET_HASH}

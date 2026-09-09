@@ -10,4 +10,7 @@ skeletons.
 - [Repository contract](AGENTS.md)
 - [Development](docs/development.md)
 - [Architecture](docs/architecture.md)
+- [API and registration service contracts](docs/api.md)
+- [Security](docs/security.md)
+- [OIDC example requests](requests/auth.http)
 - [Ticket backlog](docs/tickets/backlog.md)

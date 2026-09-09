@@ -82,8 +82,17 @@ below use `mvn`; substitute the wrapper as appropriate.
 
 Configure Maven Surefire/Failsafe as needed so `verify` actually runs the required
 JUnit 6, Mockito, and Testcontainers tests. Docker must be available for
-Testcontainers. Do not skip tests to obtain a successful final build. For shared
-build, dependency, or cross-module changes, verify all three independent projects.
+Testcontainers. Auth-server Surefire tests cover password hashing and service
+validation; Failsafe also covers registration persistence, concurrent duplicates,
+and password/token log leakage using the explicit test profile. No additional
+registration environment variables are required. OIDC integration tests generate
+RSA keys/client secrets automatically and exercise both seeded clients over real
+HTTP. Manual startup in every profile requires AUTH_ISSUER, AUTH_RSA_PRIVATE_KEY,
+AUTH_RSA_PUBLIC_KEY and AUTH_RSA_KEY_ID; explicit dev/test seeds additionally need
+AUTH_TASK_CLIENT_SECRET_HASH and AUTH_KPI_CLIENT_SECRET_HASH. See
+`docs/development.md` for the exact generated-material and HTTP walkthrough
+commands. Do not skip tests to obtain a successful final build. For shared build,
+dependency, or cross-module changes, verify all three independent projects.
 For documentation-only tickets, inspect the diff and run `git diff --check`.
 For skeleton builds, explicitly report that no application tests exist yet.
 

@@ -22,3 +22,9 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local signing keys and HTTP client credentials/history
+.local/
+**/http-client.private.env.json
+**/.http-client/
+*.pem

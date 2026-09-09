@@ -1,0 +1,149 @@
+# TICKET-0105: IntelliJ HTTP Client. Run requests in order with environment task,
+# then repeat with kpi. Setup: docs/development.md (OIDC local walkthrough).
+# Keep cookie handling enabled; redirects are disabled where codes are captured.
+# These confidential clients represent BFFs. Never copy their secrets into JS.
+# @no-log suppresses HTTP-client request history containing credentials/tokens.
+
+### 1. Discover the provider
+# @no-log
+GET {{issuer}}/.well-known/openid-configuration
+
+> {%
+    client.test("OIDC discovery", function () {
+        client.assert(response.status === 200);
+        client.assert(response.body.issuer === request.environment.get("issuer"));
+        client.assert(response.body.code_challenge_methods_supported.includes("S256"));
+    });
+%}
+
+### 2. Load the login form and obtain its session-bound CSRF token
+# @no-log
+GET {{issuer}}/login
+Accept: text/html
+
+> {%
+    const match = response.body.match(/name="_csrf"[^>]*value="([^"]+)"/);
+    client.assert(response.status === 200 && match !== null, "Login form must contain CSRF token");
+    client.global.set("csrf", match[1]);
+%}
+
+### 3. Authenticate the provisioned development employee (cookies retained)
+# @no-redirect
+# @no-log
+POST {{issuer}}/login
+Content-Type: application/x-www-form-urlencoded
+
+username={{username}}&password={{password}}&_csrf={{csrf}}
+
+> {%
+    client.assert(response.status === 302, "Login must redirect");
+    client.assert(!response.headers.valueOf("Location").includes("error"), "Login failed");
+%}
+
+### 4. Authorize with a fresh S256 PKCE verifier, state, and OIDC nonce
+# @no-redirect
+# @no-log
+< {%
+    const verifier = crypto.randomUUID() + crypto.randomUUID();
+    const state = crypto.randomUUID();
+    const nonce = crypto.randomUUID();
+    const challenge = crypto.sha256().updateWithText(verifier).digest().toBase64(true).replace(/=+$/, "");
+    client.global.set("verifier", verifier);
+    client.global.set("state", state);
+    client.global.set("nonce", nonce);
+    request.variables.set("challenge", challenge);
+%}
+GET {{issuer}}/oauth2/authorize?response_type=code&client_id={{client_id}}&redirect_uri={{redirect_uri}}&scope=openid%20profile%20email%20{{resource_scope}}&state={{state}}&nonce={{nonce}}&code_challenge={{challenge}}&code_challenge_method=S256
+Accept: text/html
+
+> {%
+    client.assert(response.status === 302, "Authorization must redirect");
+    const location = response.headers.valueOf("Location");
+    client.assert(location.startsWith(request.environment.get("redirect_uri") + "?"), "Unexpected redirect");
+    const params = {};
+    location.split("?")[1].split("&").forEach(p => {
+        const [key, value] = p.split("=");
+        params[key] = decodeURIComponent(value);
+    });
+    client.assert(params.state === client.global.get("state"), "State mismatch");
+    client.assert(params.code && !params.error, "Authorization rejected");
+    client.global.set("code", params.code);
+%}
+
+### 5. Exchange the single-use code (within two minutes)
+# @no-log
+POST {{issuer}}/oauth2/token
+Authorization: Basic {{client_id}} {{client_secret}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code={{code}}&redirect_uri={{redirect_uri}}&code_verifier={{verifier}}
+
+> {%
+    client.assert(response.status === 200, "Code exchange failed");
+    client.assert(response.body.access_token && response.body.id_token && response.body.refresh_token);
+    client.global.set("access_token", response.body.access_token);
+    client.global.set("id_token", response.body.id_token);
+    client.global.set("refresh_token", response.body.refresh_token);
+%}
+
+### 6. Public verification keys (RSA public parameters only)
+# @no-log
+GET {{issuer}}/oauth2/jwks
+
+> {%
+    client.assert(response.status === 200);
+    client.assert(response.body.keys.every(k => k.kty === "RSA" && !k.d && !k.p && !k.q));
+    // AuthorizationCodeFlowIT verifies the JWT signature, issuer, audience,
+    // expiration, kid, nonce, subject, roles and authorities against these keys.
+%}
+
+### 7. Use the access token at the OIDC UserInfo endpoint
+# @no-log
+GET {{issuer}}/userinfo
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.assert(response.status === 200 && response.body.sub, "UserInfo failed");
+%}
+
+### 8. Refresh without browser session authentication; keep the rotated token
+# @no-log
+POST {{issuer}}/oauth2/token
+Authorization: Basic {{client_id}} {{client_secret}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&refresh_token={{refresh_token}}
+
+> {%
+    client.assert(response.status === 200, "Refresh failed");
+    client.assert(response.body.refresh_token !== client.global.get("refresh_token"), "Refresh must rotate");
+    client.global.set("old_refresh_token", client.global.get("refresh_token"));
+    client.global.set("refresh_token", response.body.refresh_token);
+    client.global.set("access_token", response.body.access_token);
+%}
+
+### 9. A rotated refresh token must fail
+# @no-log
+POST {{issuer}}/oauth2/token
+Authorization: Basic {{client_id}} {{client_secret}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&refresh_token={{old_refresh_token}}
+
+> {%
+    client.assert(response.status === 400 && response.body.error === "invalid_grant");
+%}
+
+### 10. Reusing an authorization code must fail (and invalidates its authorization)
+# @no-log
+POST {{issuer}}/oauth2/token
+Authorization: Basic {{client_id}} {{client_secret}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code={{code}}&redirect_uri={{redirect_uri}}&code_verifier={{verifier}}
+
+> {%
+    client.assert(response.status === 400 && response.body.error === "invalid_grant");
+    ["csrf", "verifier", "state", "nonce", "code", "access_token", "id_token", "refresh_token", "old_refresh_token"]
+        .forEach(name => client.global.clear(name));
+%}
