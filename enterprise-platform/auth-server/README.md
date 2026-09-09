@@ -107,3 +107,11 @@ For containers, export the same credentials and set `SPRING_PROFILES_ACTIVE=dock
 The docker profile expects database DNS name `postgres` on its container network.
 The platform Compose file is still a placeholder; a service image and full Compose
 orchestration belong to later tickets. Never commit the populated `.env` file.
+
+## Observability
+
+Health and info are public. Metrics and Prometheus require the existing login
+session and return 401 anonymously. Console logs use JSON with request-local
+traceId/requestId; X-Request-ID identifies the request in logs.
+See [observability setup and verification](../../docs/development.md#auth-observability-ticket-0108)
+and [access policy](../../docs/security.md#observability-access-and-log-policy-ticket-0108).

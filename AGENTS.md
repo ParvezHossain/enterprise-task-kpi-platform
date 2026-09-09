@@ -88,7 +88,8 @@ and password/token log leakage using the explicit test profile. No additional
 registration environment variables are required. OIDC integration tests generate
 RSA keys/client secrets automatically and exercise both seeded clients over real
 HTTP, including login/token/logout, CSRF rejection, session replay, and third-party
-consent enforcement. ProblemDetailsIT exercises malformed JSON, validation, unexpected
+consent enforcement. ObservabilityIT verifies public health/info, authenticated metrics/Prometheus, and JSON
+request correlation; RequestLoggingFilterTest checks MDC cleanup. ProblemDetailsIT exercises malformed JSON, validation, unexpected
 exceptions and HEAD errors over real HTTP; login and OAuth tests assert exact RFC
 9457 response objects. Its MVC fixtures are test-only. Only the two reserved, trusted first-party client IDs may
 opt out of consent; see `docs/security.md` for the trust rationale and logout/token

@@ -16,7 +16,9 @@ public class SecurityConfiguration {
     SecurityFilterChain applicationSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator", "/actuator/**").authenticated()
                         .requestMatchers("/login", "/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/account").authenticated()
                         .anyRequest().denyAll())
@@ -34,6 +36,9 @@ public class SecurityConfiguration {
                         // login filter also renders its signed-out notice.
                         .permitAll())
                 .exceptionHandling(exceptions -> exceptions
+                        .defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                request -> request.getServletPath().equals("/actuator")
+                                        || request.getServletPath().startsWith("/actuator/"))
                         // A global entry point suppresses Spring's generated login page.
                         .defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                                 request -> !String.valueOf(request.getHeader("Accept")).contains("text/html")))

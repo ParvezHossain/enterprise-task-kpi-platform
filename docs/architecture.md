@@ -322,3 +322,18 @@ serializes the five public members explicitly and preserves only allowlisted OAu
 error extensions, avoiding exception serialization and Jackson mixin dependence.
 Compatibility references: [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
 and [Spring Framework MVC error responses](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html).
+
+## Auth observability (TICKET-0108)
+
+[ADR 0013](decisions/0013-auth-observability.md) defines endpoint access and
+request-local log correlation. Boot 4.1.1 manages the added
+`micrometer-registry-prometheus` at **1.17.1**, with Prometheus client **1.7.0**.
+JUnit Jupiter/Platform remain aligned at **6.0.3**.
+Compatibility was checked against the
+[official managed coordinates](https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html)
+and the resolved Maven dependency tree.
+[Boot metrics documentation](https://docs.spring.io/spring-boot/reference/actuator/metrics.html)
+describes registry auto-configuration and Prometheus exposure.
+[Boot structured logging](https://docs.spring.io/spring-boot/reference/features/logging.html)
+supplies Logstash JSON and serializes MDC fields without an extra encoder dependency.
+No older Actuator adapter or logging API is introduced.

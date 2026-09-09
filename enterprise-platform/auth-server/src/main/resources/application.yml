@@ -45,6 +45,10 @@ server:
 # SQL bind/extract values and database error details can contain password hashes.
 # Keep these disabled even when enabling general application DEBUG/TRACE logging.
 logging:
+  structured:
+    format:
+      console: logstash
+      file: logstash
   level:
     org.hibernate.orm.jdbc.bind: OFF
     org.hibernate.orm.jdbc.extract: OFF
@@ -58,7 +62,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: never

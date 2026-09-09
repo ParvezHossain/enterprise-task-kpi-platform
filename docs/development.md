@@ -289,3 +289,38 @@ generated RSA keys/credentials, and separate runtime/migration roles. The script
 converts the CLI's response wrapper to native JSON before enumerating exact
 Problem Details fields. Application-log credential scanning passed. `git diff
 --check` was clean.
+
+## Auth observability (TICKET-0108)
+
+Use Java 25+, Maven and running Docker with the existing generated auth material
+and database setup above. No new environment variables or collector are needed.
+Run from the repository root:
+
+```sh
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+```
+
+Surefire includes MDC cleanup/isolation checks; Failsafe ObservabilityIT uses
+PostgreSQL Testcontainers and the explicit test profile with generated keys and
+secrets. It verifies public probes, anonymous rejection, real login and metrics,
+JSON correlation, and exclusion of sensitive inputs.
+
+With the service running, public probes and anonymous rejection can be checked:
+
+```sh
+curl -i http://localhost:9000/actuator/health
+curl -i http://localhost:9000/actuator/info
+curl -i http://localhost:9000/actuator/prometheus
+```
+
+The last command returns 401. Log in at /login with an existing account, then open
+/actuator/metrics or /actuator/prometheus in the same browser for HTTP 200.
+A client with an authenticated curl cookie jar can request the scrape with
+`curl -b "$cookie_jar" http://localhost:9000/actuator/prometheus` (substitute its
+cookie-jar path). Scrapers need a valid session; Basic and OAuth client credentials
+are not configured for these endpoints.
+
+Console logs are newline-delimited Logstash JSON; configured file output uses the
+same format. Match the response X-Request-ID to requestId in logs. traceId is
+request-local, with no cross-service propagation or trace exporter. Startup logs
+have no HTTP correlation. The completion event includes status and durationMs.

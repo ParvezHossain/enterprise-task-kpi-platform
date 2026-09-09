@@ -122,3 +122,20 @@ error redirects and redirects to the login form remain 302 protocol responses,
 not HTTP error bodies. HEAD responses retain HTTP semantics and have no body.
 Errors rejected by the HTTP connector before servlet processing are outside this
 application contract.
+
+## Auth observability (TICKET-0108)
+
+| Endpoint | Access | Successful response |
+| --- | --- | --- |
+| GET/HEAD /actuator/health | Public | Health status without details/components |
+| GET/HEAD /actuator/info | Public | JSON info object (empty by default) |
+| GET /actuator/metrics | Authenticated login session | Available metric names |
+| GET /actuator/metrics/{name} | Authenticated login session | Metric measurements |
+| GET /actuator/prometheus | Authenticated login session | Prometheus scrape text |
+
+Anonymous requests to sensitive Actuator paths return 401 RFC 9457 Problem
+Details, including requests accepting HTML. Unexposed endpoints such as
+`/actuator/env` return 404 after authentication. Every request receives a
+server-generated `X-Request-ID` response header for locating its JSON logs;
+caller-supplied correlation headers are ignored. Existing Problem Details bodies
+remain unchanged.

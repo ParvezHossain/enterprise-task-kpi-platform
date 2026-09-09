@@ -1,6 +1,6 @@
 # Security
 
-## Initial auth-server bootstrap (superseded for protocol routes by TICKET-0105)
+## Initial auth-server bootstrap (superseded by TICKET-0105 and TICKET-0108)
 
 [ADR 0007](decisions/0007-auth-bootstrap-security.md) defines the initial policy:
 only GET `/actuator/health` permits anonymous access. Other requests are denied;
@@ -146,3 +146,16 @@ excluded from Problem Details instances. Existing credential-log restrictions
 remain in force. Failed login uses the same 401 body for unknown/disabled users and
 wrong passwords, including HTML callers. CSRF and session protections are unchanged.
 See [the exact error contract](api.md#error-responses-ticket-0107).
+
+## Observability access and log policy (TICKET-0108)
+
+The current exposure supersedes the bootstrap policy: GET/HEAD health and info
+are public; all remaining Actuator paths require an authenticated login session.
+Metrics access is allowed for any authenticated user. Anonymous access gets 401
+even when HTML is requested. Other Actuator endpoints remain unexposed.
+Existing form login, CSRF, and logout/session invalidation remain in force.
+
+JSON request completion events contain generated requestId/traceId, status and
+durationMs. Incoming IDs are ignored; URLs, query parameters, headers, bodies and
+identities are excluded from completion logs. Existing sensitive framework logging
+restrictions remain active. See [ADR 0013](decisions/0013-auth-observability.md).
