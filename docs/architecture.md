@@ -337,3 +337,16 @@ describes registry auto-configuration and Prometheus exposure.
 [Boot structured logging](https://docs.spring.io/spring-boot/reference/features/logging.html)
 supplies Logstash JSON and serializes MDC fields without an extra encoder dependency.
 No older Actuator adapter or logging API is introduced.
+
+## Auth-server container (TICKET-0110)
+
+[ADR 0014](decisions/0014-auth-server-container.md) selects a Maven build stage
+and a minimal Alpine JRE runtime, with numeric non-root UID/GID 10001.
+Verified on 2026-09-09 against the Docker Official Images
+[Maven catalog](https://github.com/docker-library/official-images/blob/master/library/maven)
+and [Temurin catalog](https://github.com/docker-library/official-images/blob/master/library/eclipse-temurin):
+Maven **3.9.16 / Temurin 25** and **Temurin 25.0.4+7 JRE / Alpine 3.24**
+publish linux/amd64 and linux/arm64 variants. Both manifest-list digests were
+resolved with `docker buildx imagetools inspect` and pinned in the Dockerfile.
+The Java 25 runtime matches the existing compiler release and Boot 4.1.1 baseline;
+no application dependency versions or APIs change.

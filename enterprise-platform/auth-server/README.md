@@ -105,8 +105,7 @@ java -jar target/auth-server-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
 
 For containers, export the same credentials and set `SPRING_PROFILES_ACTIVE=docker`.
 The docker profile expects database DNS name `postgres` on its container network.
-The platform Compose file is still a placeholder; a service image and full Compose
-orchestration belong to later tickets. Never commit the populated `.env` file.
+The platform Compose file remains a placeholder; use the standalone image below. Never commit the populated `.env` file.
 
 ## Observability
 
@@ -115,3 +114,76 @@ session and return 401 anonymously. Console logs use JSON with request-local
 traceId/requestId; X-Request-ID identifies the request in logs.
 See [observability setup and verification](../../docs/development.md#auth-observability-ticket-0108)
 and [access policy](../../docs/security.md#observability-access-and-log-policy-ticket-0108).
+
+The [TICKET-0109 suite guide](../../docs/development.md#auth-server-security-suite-ticket-0109)
+details token issuance unit tests and PostgreSQL-backed OIDC success,
+invalid-client, expired-token, and revoked-refresh-token coverage.
+
+## Build and run the container
+
+From the repository root, with Docker, Java 25+ and Maven:
+
+```sh
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+docker build -t auth-server:local enterprise-platform/auth-server
+```
+
+The multi-stage build compiles from source and runs unit tests with Maven 3.9.16
+and Temurin 25. The final image contains only the application JAR and the Alpine
+Temurin 25.0.4 JRE, runs as UID/GID 10001, and starts Java directly as PID 1.
+Base images are pinned by digest. The build context allowlists Maven/source files;
+host target artifacts, environment files, and local signing keys are excluded.
+The Docker build runs `package`; the separate `clean verify` is required for
+PostgreSQL Testcontainers integration tests. No Docker socket is mounted into the
+builder and no tests are disabled.
+
+For a fully disposable standalone check (also requires Python 3 and OpenSSL):
+
+```sh
+python3 scripts/smoke-auth-container.py --image auth-server:local
+```
+
+This starts a fresh PostgreSQL container on a private Docker network, provisions
+separate runtime/migration roles and temporary RSA keys, starts the image, and
+waits up to 180 seconds for its built-in health check. It checks HTTP 200/UP,
+UID 10001, absence of Maven/javac, and Flyway ownership while running with a
+read-only root filesystem and a writable /tmp. It removes its containers, network,
+anonymous database volume, and temporary keys on exit. It never touches an
+existing database.
+
+For a persistent standalone deployment, provision the database above on a Docker
+network called `auth-platform`, with its container aliased `postgres`, or set
+AUTH_DB_URL to a database reachable from that network. Prepare a private Docker
+env-file with one literal KEY=value per line (no shell quotes or export prefixes)
+using the required variables in the table. Set:
+
+```text
+SPRING_PROFILES_ACTIVE=docker,prod
+AUTH_RSA_PRIVATE_KEY=file:/run/auth-keys/private.pem
+AUTH_RSA_PUBLIC_KEY=file:/run/auth-keys/public.pem
+```
+
+Use a stable external AUTH_ISSUER and persist the signing keys. Mount a directory
+containing the matching PEM files, readable by UID/GID 10001; provision directory
+mode 0700 and files 0400 owned by 10001, or equivalent restricted ACLs. Never
+bake secrets into the image. Replace the two absolute host paths below:
+
+```sh
+docker run -d --name auth-server --network auth-platform \
+  --env-file /absolute/path/auth-container.env \
+  --mount type=bind,src=/absolute/path/auth-keys,dst=/run/auth-keys,readonly \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:9000:9000 auth-server:local
+docker inspect --format '{{.State.Health.Status}}' auth-server
+curl --fail http://localhost:9000/actuator/health
+docker logs --tail 50 auth-server
+```
+
+Health should become `healthy`, with HTTP 200 and `{"status":"UP"}`.
+The image probes /actuator/health every 10 seconds, allows 60 seconds for startup,
+and becomes unhealthy after three failures. The probe uses AUTH_SERVER_PORT
+(default 9000); if changing that variable, update the container port mapping too.
+Health includes database connectivity. Keep the management path and port at
+their defaults or override the Docker health check accordingly. Application logs
+are JSON on stdout. `docker stop auth-server` sends SIGTERM directly to Java.

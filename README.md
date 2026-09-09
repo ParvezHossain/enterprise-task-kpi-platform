@@ -14,3 +14,5 @@ skeletons.
 - [Security](docs/security.md)
 - [Login, OIDC and logout example requests](requests/auth.http)
 - [Ticket backlog](docs/tickets/backlog.md)
+
+The auth server also has a [standalone Docker image and smoke check](enterprise-platform/auth-server/README.md#build-and-run-the-container).

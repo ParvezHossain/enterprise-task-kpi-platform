@@ -324,3 +324,69 @@ Console logs are newline-delimited Logstash JSON; configured file output uses th
 same format. Match the response X-Request-ID to requestId in logs. traceId is
 request-local, with no cross-service propagation or trace exporter. Startup logs
 have no HTTP correlation. The completion event includes status and durationMs.
+
+## Auth-server security suite (TICKET-0109)
+
+Run the complete suite from the auth-server directory:
+
+```sh
+cd enterprise-platform/auth-server
+mvn clean verify
+```
+
+Equivalently, from the repository root run
+`mvn -f enterprise-platform/auth-server/pom.xml clean verify`.
+Java 25+, Maven, and a running Docker daemon are required. PostgreSQL
+Testcontainers uses the pinned `postgres:18.6-alpine` image; no manually started
+database or auth environment variables are needed. The OIDC integration class
+activates `test`, generates RSA keys and client secrets, and runs real HTTP
+requests against the application with Flyway-managed PostgreSQL persistence.
+
+Surefire includes password salt/matching checks and Mockito-backed token
+customizer tests: granted scopes determine service audiences, identity data is
+reloaded for each issuance, ID-token email requires the email scope, and missing
+identities/malformed principals fail with invalid_grant.
+
+Failsafe's AuthorizationCodeFlowIT covers both seeded clients through discovery,
+JWKS signature validation, login, authorization code with S256 PKCE, ID/access
+claims, UserInfo, refresh rotation, replay rejection, and logout. Dedicated cases
+check unknown clients, incorrect secrets, cross-client refresh/revocation,
+persistent and repeatable explicit revocation, expired refresh grants, and a
+correctly signed expired access token at UserInfo.
+
+Expiry fixtures move timestamps into the past; they never wait for token TTLs.
+The access-token fixture preserves real issued claims, signs with the ephemeral
+test key, verifies the signature, and checks the production decoder's expiry
+error before the HTTP rejection. Targeted database updates affect only that
+test's token. No production clocks, TTLs, validators, or endpoints are replaced.
+
+## Auth-server image (TICKET-0110)
+
+From the repository root, with Docker, Java 25+, Maven, Python 3 and OpenSSL:
+
+```sh
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+docker build -t auth-server:local enterprise-platform/auth-server
+python3 scripts/smoke-auth-container.py --image auth-server:local
+```
+
+The image build runs unit tests; clean verify also runs the PostgreSQL
+Testcontainers suite. The smoke utility generates its own temporary keys and
+credentials, uses docker,prod, and provisions separate runtime/migration database
+roles. It checks Docker's actual health status, HTTP UP, non-root UID 10001,
+JRE-only runtime, and Flyway table ownership with a read-only container root.
+A local Docker daemon is required because keys are bind-mounted from a temporary
+host directory. The script cleans up its containers/network/data and secrets;
+the built image remains available.
+
+See the [service README](../enterprise-platform/auth-server/README.md#build-and-run-the-container)
+for persistent database setup, key file permissions, env-file format, port
+mapping, health checks, and shutdown. No full-platform Compose service is added.
+
+Verification on 2026-09-09 (linux/amd64): auth-server `mvn clean verify`
+passed 12 unit and 29 integration tests with zero failures/errors/skips.
+`docker build -t auth-server:local enterprise-platform/auth-server` succeeded,
+including 12 unit tests in the Maven builder. The smoke command reported Docker
+healthy, HTTP 200/UP, UID 10001, no Maven/javac, a read-only root, and Flyway
+ownership by auth_migrator. Temporary containers were confirmed removed.
+The local image remains tagged `auth-server:local`; arm64 was not smoke-tested.

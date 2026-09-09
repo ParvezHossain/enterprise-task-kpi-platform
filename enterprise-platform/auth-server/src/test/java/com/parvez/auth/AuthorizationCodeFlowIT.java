@@ -11,6 +11,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -55,6 +57,8 @@ class AuthorizationCodeFlowIT {
     @Autowired UserService users;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+    @Autowired org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService authorizations;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -321,6 +325,134 @@ class AuthorizationCodeFlowIT {
             jdbc.update("DELETE FROM oauth2_authorization_consent WHERE registered_client_id = ?", clientId);
             jdbc.update("DELETE FROM oauth2_registered_client WHERE id = ?", clientId);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"task-management-ui", "kpi-ui"})
+    void invalidClientsCannotUseOrRevokeAnotherClientsGrant(String clientId) throws Exception {
+        var token = issueTokens(clientId);
+        String refreshToken = token.path("refresh_token").asText();
+        for (String invalidId : List.of("unknown-client", clientId)) {
+            var rejected = post(browser(), "/oauth2/token",
+                    Map.of("grant_type", "refresh_token", "refresh_token", refreshToken),
+                    invalidId, "wrong-client-secret");
+            assertThat(rejected.statusCode()).isEqualTo(401);
+            assertError(rejected, "invalid_client");
+        }
+        String otherClient = clientId.equals("kpi-ui") ? "task-management-ui" : "kpi-ui";
+        var wrongOwner = refresh(browser(), otherClient, refreshToken);
+        assertThat(wrongOwner.statusCode()).isEqualTo(400);
+        assertError(wrongOwner, "invalid_grant");
+        // Security 7 rejects revocation by an authenticated client that does not own the grant.
+        var foreignRevocation = post(browser(), "/oauth2/revoke",
+                Map.of("token", refreshToken, "token_type_hint", "refresh_token"),
+                otherClient, secret(otherClient));
+        assertThat(foreignRevocation.statusCode()).isEqualTo(400);
+        assertError(foreignRevocation, "invalid_client");
+        assertThat(refresh(browser(), clientId, refreshToken).statusCode()).isEqualTo(200);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"task-management-ui", "kpi-ui"})
+    void explicitRefreshRevocationIsPersistentAndIdempotent(String clientId, CapturedOutput output) throws Exception {
+        var token = issueTokens(clientId);
+        String refreshToken = token.path("refresh_token").asText();
+        var type = org.springframework.security.oauth2.server.authorization.OAuth2TokenType.REFRESH_TOKEN;
+        assertThat(authorizations.findByToken(refreshToken, type).getRefreshToken().isActive()).isTrue();
+        for (int attempt = 0; attempt < 2; attempt++) {
+            assertThat(post(browser(), "/oauth2/revoke",
+                    Map.of("token", refreshToken, "token_type_hint", "refresh_token"),
+                    clientId, secret(clientId)).statusCode()).isEqualTo(200);
+            // A new JDBC read proves revocation survived beyond the HTTP request.
+            assertThat(authorizations.findByToken(refreshToken, type).getRefreshToken().isInvalidated()).isTrue();
+            var rejected = refresh(browser(), clientId, refreshToken);
+            assertThat(rejected.statusCode()).isEqualTo(400);
+            assertError(rejected, "invalid_grant");
+        }
+        assertThat(output.getAll()).doesNotContain(refreshToken);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"task-management-ui", "kpi-ui"})
+    void expiredRefreshTokenCannotMintTokens(String clientId, CapturedOutput output) throws Exception {
+        var token = issueTokens(clientId);
+        String refreshToken = token.path("refresh_token").asText();
+        Instant expired = Instant.now().minusSeconds(300);
+        assertThat(jdbc.update("""
+                UPDATE oauth2_authorization SET refresh_token_issued_at = ?, refresh_token_expires_at = ?
+                WHERE refresh_token_value = ?
+                """, Timestamp.from(expired.minusSeconds(600)), Timestamp.from(expired), refreshToken)).isEqualTo(1);
+        var rejected = refresh(browser(), clientId, refreshToken);
+        assertThat(rejected.statusCode()).isEqualTo(400);
+        assertError(rejected, "invalid_grant");
+        assertThat(jdbc.queryForObject("""
+                SELECT refresh_token_value FROM oauth2_authorization WHERE refresh_token_value = ?
+                """, String.class, refreshToken)).isEqualTo(refreshToken);
+        assertThat(output.getAll()).doesNotContain(refreshToken);
+    }
+
+    @Test
+    void correctlySignedExpiredAccessTokenIsRejectedByUserInfo(CapturedOutput output) throws Exception {
+        var token = issueTokens("task-management-ui");
+        String accessToken = token.path("access_token").asText();
+        assertThat(userInfo(accessToken).statusCode()).isEqualTo(200);
+        // Keep the real issued claims and signing key, changing only time claims.
+        // Expiration is five minutes in the past, beyond the decoder's clock skew.
+        var signed = com.nimbusds.jwt.SignedJWT.parse(accessToken);
+        Instant expired = Instant.now().minusSeconds(300);
+        var claims = new com.nimbusds.jwt.JWTClaimsSet.Builder(signed.getJWTClaimsSet())
+                .issueTime(java.util.Date.from(expired.minusSeconds(300)))
+                .notBeforeTime(java.util.Date.from(expired.minusSeconds(300)))
+                .expirationTime(java.util.Date.from(expired)).build();
+        var expiredJwt = new com.nimbusds.jwt.SignedJWT(signed.getHeader(), claims);
+        try (var input = java.nio.file.Files.newInputStream(TestAuthMaterial.PRIVATE_KEY)) {
+            expiredJwt.sign(new com.nimbusds.jose.crypto.RSASSASigner(
+                    org.springframework.security.converter.RsaKeyConverters.pkcs8().convert(input)));
+        }
+        var jwks = JWKSet.parse(get(browser(), "/oauth2/jwks").body());
+        assertThat(expiredJwt.verify(new com.nimbusds.jose.crypto.RSASSAVerifier(
+                jwks.getKeys().getFirst().toRSAKey()))).isTrue();
+        String expiredToken = expiredJwt.serialize();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jwtDecoder.decode(expiredToken))
+                .isInstanceOfSatisfying(org.springframework.security.oauth2.jwt.JwtValidationException.class,
+                        exception -> assertThat(exception.getErrors()).anySatisfy(error ->
+                                assertThat(error.getDescription()).containsIgnoringCase("expired")));
+        // Keep the authorization lookup valid so rejection cannot be due to an unknown token.
+        assertThat(jdbc.update("""
+                UPDATE oauth2_authorization SET access_token_value = ?, access_token_issued_at = ?,
+                access_token_expires_at = ? WHERE access_token_value = ?
+                """, expiredToken, Timestamp.from(expired.minusSeconds(300)), Timestamp.from(expired),
+                accessToken)).isEqualTo(1);
+        var rejected = userInfo(expiredToken);
+        assertThat(rejected.statusCode()).isEqualTo(401);
+        assertError(rejected, "invalid_token");
+        assertThat(rejected.headers().firstValue("www-authenticate"))
+                .hasValue("Bearer error=\"invalid_token\"");
+        assertThat(output.getAll()).doesNotContain(accessToken, expiredToken);
+    }
+
+    private JsonNode issueTokens(String clientId) throws Exception {
+        var browser = browser();
+        String email = UUID.randomUUID() + "@example.org";
+        String password = "Token-suite-" + UUID.randomUUID();
+        users.register(new RegistrationRequest(email, password));
+        login(browser, email, password);
+        String verifier = verifier();
+        String state = UUID.randomUUID().toString();
+        String code = code(get(browser, authorization(clientId, verifier, state, UUID.randomUUID().toString())),
+                state, clientId);
+        var response = exchange(browser, clientId, code, verifier);
+        assertThat(response.statusCode()).isEqualTo(200);
+        var tokens = json.readTree(response.body());
+        for (String field : List.of("access_token", "id_token", "refresh_token")) {
+            assertThat(tokens.path(field).asText()).as(field).isNotBlank();
+        }
+        return tokens;
+    }
+
+    private HttpResponse<String> userInfo(String token) throws Exception {
+        return send(browser(), HttpRequest.newBuilder(URI.create(ISSUER + "/userinfo"))
+                .header("Authorization", "Bearer " + token).GET());
     }
 
     private static String hidden(String html, String name) {

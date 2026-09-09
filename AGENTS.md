@@ -78,6 +78,8 @@ below use `mvn`; substitute the wrapper as appropriate.
 | Task management, from repository root | `mvn -f enterprise-platform/task-management/pom.xml clean verify` | Verify the task management project. |
 | KPI service, from repository root | `mvn -f enterprise-platform/kpi-service/pom.xml clean verify` | Verify the KPI service project. |
 | Any backend, from its directory | `mvn clean verify` | Verify that independent project. |
+| Auth image, from repository root | `docker build -t auth-server:local enterprise-platform/auth-server` | Build source and run unit tests; run Maven verify separately. |
+| Auth container smoke, from repository root | `python3 scripts/smoke-auth-container.py --image auth-server:local` | Requires local Docker, Python 3 and OpenSSL; provisions disposable PostgreSQL/keys and verifies container health. |
 | Fast unit-test feedback, from the applicable Maven project | `mvn test` | Run unit tests during development; this does not replace final verification. |
 
 Configure Maven Surefire/Failsafe as needed so `verify` actually runs the required
@@ -88,7 +90,10 @@ and password/token log leakage using the explicit test profile. No additional
 registration environment variables are required. OIDC integration tests generate
 RSA keys/client secrets automatically and exercise both seeded clients over real
 HTTP, including login/token/logout, CSRF rejection, session replay, and third-party
-consent enforcement. ObservabilityIT verifies public health/info, authenticated metrics/Prometheus, and JSON
+consent enforcement. TICKET-0109 adds token-customizer unit tests and explicit
+unknown/wrong-client, cross-client grant ownership, expired access/refresh token,
+and persistent/idempotent refresh revocation integration coverage. Expiry uses
+test-only past timestamps, without sleeping or changing production TTLs. ObservabilityIT verifies public health/info, authenticated metrics/Prometheus, and JSON
 request correlation; RequestLoggingFilterTest checks MDC cleanup. ProblemDetailsIT exercises malformed JSON, validation, unexpected
 exceptions and HEAD errors over real HTTP; login and OAuth tests assert exact RFC
 9457 response objects. Its MVC fixtures are test-only. Only the two reserved, trusted first-party client IDs may

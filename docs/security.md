@@ -159,3 +159,29 @@ JSON request completion events contain generated requestId/traceId, status and
 durationMs. Incoming IDs are ignored; URLs, query parameters, headers, bodies and
 identities are excluded from completion logs. Existing sensitive framework logging
 restrictions remain active. See [ADR 0013](decisions/0013-auth-observability.md).
+
+## Token failure regression coverage (TICKET-0109)
+
+The PostgreSQL/HTTP OIDC suite checks that wrong secrets and unknown clients
+receive 401 invalid_client, while cross-client and expired/revoked refresh grants
+receive 400 invalid_grant. Revocation by a different authenticated client returns
+400 invalid_client without invalidating the owner's grant; owner revocation persists in
+PostgreSQL and remains successful when repeated. The revoked refresh token cannot
+mint tokens. A correctly signed expired access token receives 401 invalid_token
+at UserInfo with a sanitized Bearer challenge. These tests preserve the existing
+RFC 9457 error response contract and check that token values do not enter logs.
+
+
+Cross-client revocation follows the selected
+[Spring Security 7.1.1 provider](https://github.com/spring-projects/spring-security/blob/7.1.1/oauth2/oauth2-authorization-server/src/main/java/org/springframework/security/oauth2/server/authorization/authentication/OAuth2TokenRevocationAuthenticationProvider.java):
+an existing grant owned by another client raises invalid_client; unknown token
+revocation succeeds without a grant change.
+
+## Auth container boundary (TICKET-0110)
+
+The runtime uses UID/GID 10001 and a root-owned, read-only application JAR.
+The documented run and smoke commands drop Linux capabilities, disallow new
+privileges, and use a read-only root with a writable /tmp. Signing keys are mounted
+read-only and must be readable by UID 10001; database credentials are injected
+at runtime. Neither enters Docker build inputs or image layers. The image keeps
+the existing authenticated metrics policy and public health/info policy.
