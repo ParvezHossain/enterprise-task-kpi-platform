@@ -2,7 +2,9 @@
 
 The application skeleton lives in [`enterprise-platform/`](enterprise-platform/README.md).
 It contains three independent Maven backend projects and two static frontend
-placeholders. There are no implemented services yet.
+placeholders. The [auth server](enterprise-platform/auth-server/README.md) boots
+against PostgreSQL and exposes a public health endpoint; Task and KPI remain
+skeletons.
 
 - [Directory structure and build commands](enterprise-platform/README.md)
 - [Repository contract](AGENTS.md)

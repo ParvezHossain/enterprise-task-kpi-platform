@@ -63,8 +63,9 @@ Record version choices, compatibility evidence, and API migration notes in
 ## Build and test commands
 
 The repository has three independent, parent-less Maven projects under
-`enterprise-platform/`; there is no root POM or reactor. They are currently empty
-skeletons with no application sources or tests. When adding or changing a module,
+`enterprise-platform/`; there is no root POM or reactor. Auth server is a Boot
+application with PostgreSQL Testcontainers integration tests; Task and KPI remain
+empty skeletons. When adding or changing a module,
 update this section and `docs/development.md` with its exact commands,
 prerequisites, profiles, and service setup.
 

@@ -4,9 +4,10 @@
 
 Use Java 25 or newer and Maven (no Maven wrapper is present yet). Confirm with
 `java -version` and `mvn -version`; Maven must use the intended JDK.
-Docker and Docker Compose will be needed when services and Testcontainers tests
-are introduced. The current skeleton needs no running containers, profiles, or
-environment variables.
+Docker is required for auth-server Testcontainers integration tests. For manual
+startup, provision PostgreSQL and export the credentials documented in the
+[auth-server README](../enterprise-platform/auth-server/README.md). Docker Compose
+orchestration is introduced in later tickets.
 
 ## Build and test
 
@@ -22,9 +23,9 @@ Alternatively, run `mvn clean verify` inside each backend directory. No root POM
 or Maven reactor exists. Run all three commands for shared build changes.
 Maven may need network access to download lifecycle plugins on the first build.
 
-These are empty JAR projects: no sources/tests and empty JAR warnings are expected.
-Successful verification checks the scaffold build lifecycle, not application
-behavior. Add meaningful tests with application implementation in later tickets.
+Auth-server verification runs real HTTP integration tests against disposable
+PostgreSQL using JUnit 6 and Failsafe. Task and KPI remain empty JAR projects with
+no sources/tests. Their successful builds check only the scaffold lifecycle.
 
 ## Frontend and Compose placeholders
 
@@ -33,8 +34,8 @@ Open `enterprise-platform/frontend/task-management-ui/index.html` or
 or a frontend build step yet.
 
 `enterprise-platform/docker-compose.yml` intentionally contains `services: {}`.
-No containers can be started yet. The environment template contains comments only;
-add variables and document them when the Compose services are implemented.
+No Compose services can be started yet. The environment template now contains
+auth-server variables; it must be exported explicitly for standalone startup.
 
 Keep local `.env` files private; `.env.example` is tracked. Build output, IDE
 metadata, and `node_modules/` are ignored by Git.
@@ -46,6 +47,26 @@ approved Boot-managed JUnit 6 baseline. Verify the resolved test dependency grap
 and test execution when bootstrapping the applications.
 Future local Compose setup uses one PostgreSQL container with three databases;
 KPI polls Task over REST. Kafka, RabbitMQ, and Redis are not required.
-These are design decisions only: the existing build commands still verify empty
-skeletons, and no new profiles, environment variables, or running services were
-introduced in this ticket.
+TICKET-0101 implements the auth-server baseline with `local` and `docker` profiles.
+See its README for database provisioning, environment variables, executable JAR
+startup, and the `curl` health check.
+
+## TICKET-0101 verification
+
+On 2026-09-09, auth-server `clean verify` passed on Java 25.0.4 with two JUnit 6
+integration tests, zero failures/errors/skips, and Testcontainers PostgreSQL 18.6.
+In the restricted agent environment, Maven used
+`-Dmaven.repo.local=/tmp/ticket-0001-m2` for a writable dependency cache.
+
+The packaged executable JAR was also started under both `local` and `docker`
+profiles against a disposable PostgreSQL database, with `AUTH_DB_URL` pointing to
+its temporary host port. Both returned HTTP 200 from `/actuator/health` with
+`"status":"UP"`, and HTTP 401 from `/v3/api-docs`. This checks both profile
+configurations on the host; container-network orchestration is not implemented yet.
+The smoke check used separate non-superuser runtime and migration logins and
+confirmed Flyway's history table belongs to the migration role. Temporary app
+processes and the database container were removed after verification.
+
+Packaged library versions and the actual test classpath matched the documented
+BOM baseline. No domain migrations exist yet, so Flyway's no-migrations warning
+is expected until TICKET-0102.

@@ -1,8 +1,8 @@
 # Enterprise Platform
 
-TICKET-0001 repository skeleton. The three backend projects are independent,
-parent-less Maven JAR projects with no dependencies, Java sources, or tests yet.
-The frontend pages and Compose file are placeholders; no application runs yet.
+The three backend projects are independent, parent-less Maven projects.
+[Auth Server](auth-server/README.md) is a Boot application with PostgreSQL
+integration tests. Task, KPI, frontend pages, and Compose remain skeletons.
 
 ## Structure
 
@@ -13,7 +13,15 @@ enterprise-platform/
 ├── .env.example
 ├── docker-compose.yml
 ├── auth-server/
-│   └── pom.xml
+│   ├── pom.xml
+│   ├── README.md
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/parvez/auth/
+│       │   │   ├── AuthServerApplication.java
+│       │   │   └── config/SecurityConfiguration.java
+│       │   └── resources/application.yml
+│       └── test/java/com/parvez/auth/AuthServerApplicationIT.java
 ├── task-management/
 │   └── pom.xml
 ├── kpi-service/
@@ -39,12 +47,12 @@ mvn -f task-management/pom.xml clean verify
 mvn -f kpi-service/pom.xml clean verify
 ```
 
-Empty JAR warnings and reports of no sources/tests are expected at this stage.
-There is no root reactor POM. Exact compatible Spring versions and application
-bootstraps belong to subsequent tickets; follow [AGENTS.md](../AGENTS.md).
+Docker is required for auth-server integration tests. Empty JAR warnings and
+reports of no sources/tests remain expected for Task and KPI. There is no root
+reactor POM; follow [AGENTS.md](../AGENTS.md).
 
 The Compose placeholder defines no services and cannot start the platform.
-The `.env.example` template contains no active variables yet. Open either frontend
+The `.env.example` template documents auth-server connection variables. Open either frontend
 `index.html` directly in a browser to view its static placeholder.
 
 See [development](../docs/development.md), [architecture](../docs/architecture.md),

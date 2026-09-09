@@ -13,14 +13,15 @@ documentation; `enterprise-platform/docs/README.md` links here.
 | `enterprise-platform/kpi-service` | `com.parvez:kpi-service` | `com.parvez.kpi` | KPI service |
 
 All three are independent, parent-less Maven JAR projects targeting Java 25.
-There is no shared parent, aggregator, application code, or dependency declaration.
+There is no shared parent or aggregator. TICKET-0101 adds the auth-server
+application and dependencies; Task and KPI remain empty skeletons.
 See [ADR 0001](decisions/0001-independent-service-skeletons.md).
 
 ## Core decisions (TICKET-0002)
 
 Status: Accepted design for subsequent implementation tickets. Verified against
-live official documentation on 2026-09-09. This ticket changes documentation only;
-the POMs and Compose file remain empty skeletons. The repository contract now
+live official documentation on 2026-09-09. TICKET-0002 documented the decisions;
+TICKET-0101 applies the auth-server baseline. Compose remains a placeholder. The repository contract now
 uses Boot-managed JUnit 6, as approved by the user.
 
 | Decision | Chosen | Alternatives considered | Why |
@@ -68,9 +69,7 @@ and Testcontainers remain required. Use BOM-managed releases when bootstrapping,
 verify resolved versions, and configure PostgreSQL-specific Flyway support.
 [springdoc's compatibility guidance](https://springdoc.org/#what-is-the-compatibility-matrix-of-springdoc-openapi-with-spring-boot)
 places Boot 4 on springdoc 3.x; pin and verify its exact compatible release in the
-bootstrap ticket. PostgreSQL image and Maven plugin versions must likewise be
-verified and pinned when introduced. This ticket does not pretend to have tested
-a complete application dependency graph.
+bootstrap ticket. The auth-server pins and verification are recorded below.
 
 ### Test stack: JUnit 6
 
@@ -81,8 +80,9 @@ Use the BOM to align Jupiter and Platform; do not override them independently.
 
 Bootstrap tickets must configure compatible Surefire/Failsafe plugins and verify
 Spring context, Mockito, and Testcontainers tests on Java 25. This documentation
-decision does not claim runtime test compatibility has already been exercised;
-the repository still contains no application tests.
+decision is now exercised by the auth-server JUnit 6 integration tests using
+Spring context and Testcontainers. Mockito is supplied by the test starter; no
+mocking is needed for the real database/HTTP bootstrap checks.
 
 ## Local database boundaries
 
@@ -200,3 +200,37 @@ before cache access. A new generation must never reuse old generation results;
 policy/membership changes invalidate relevant entries or change the authorization
 scope version. Do not cache failed responses. Verify isolation and freshness with
 tests. Consider Redis only if measured multi-instance needs justify operating it.
+
+## Auth-server bootstrap (TICKET-0101)
+
+The auth-server POM imports the Boot 4.1.1 BOM without a parent. Resolution from
+[Maven Central's release BOM](https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-dependencies/4.1.1/spring-boot-dependencies-4.1.1.pom)
+confirms Framework 7.0.9, Security/Authorization Server 7.1.1, Hibernate 7.4.5.Final,
+Flyway 12.4.0, PostgreSQL JDBC 42.7.13, JUnit 6.0.3, Mockito 5.23.0, and
+Testcontainers 2.0.5. springdoc MVC UI is pinned to 3.1.1 using its official
+Boot 4 compatibility guidance and
+[release metadata](https://repo.maven.apache.org/maven2/org/springdoc/springdoc-openapi-starter-webmvc-ui/maven-metadata.xml).
+
+The compiler plugin is pinned to 3.14.1 (Java 25 compilation), Surefire/Failsafe
+to 3.6.0 (JUnit Platform execution), and the Boot plugin to 4.1.1. Plugin releases
+were checked against Maven Central; see
+[compiler metadata](https://repo.maven.apache.org/maven2/org/apache/maven/plugins/maven-compiler-plugin/maven-metadata.xml)
+and [Surefire metadata](https://repo.maven.apache.org/maven2/org/apache/maven/plugins/maven-surefire-plugin/maven-metadata.xml).
+Clean/resources/JAR lifecycle plugins retain the previously verified scaffold
+versions, now explicitly pinned. Failsafe uses `target/classes` so repackaging the
+executable Boot JAR does not hide application classes from integration tests.
+
+The test database image is pinned to `postgres:18.6-alpine`, following the
+[PostgreSQL 18 release notes](https://www.postgresql.org/docs/18/release.html).
+The local/docker profiles change the default database host and accept explicit
+runtime and migration credentials. Database health remains enabled; no H2 or
+persistence exclusions are used to make startup pass. Schema migrations begin in
+TICKET-0102; Flyway currently initializes only its history table.
+
+See [ADR 0007](decisions/0007-auth-bootstrap-security.md) for the bootstrap access
+policy and [auth-server README](../enterprise-platform/auth-server/README.md)
+for startup instructions. Boot 4-specific changes include the modular Flyway and
+Security starters, the `org.springframework.boot.security.autoconfigure` package
+for default-user auto-configuration, Jackson 3's `tools.jackson` test API, and
+Testcontainers 2's `testcontainers-postgresql` artifact and
+`org.testcontainers.postgresql` package.
