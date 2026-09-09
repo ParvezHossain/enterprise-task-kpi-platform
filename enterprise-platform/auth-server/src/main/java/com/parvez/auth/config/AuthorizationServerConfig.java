@@ -3,6 +3,7 @@ package com.parvez.auth.config;
 import java.util.ArrayList;
 import java.util.UUID;
 import com.parvez.auth.security.IdentityAuthenticationService;
+import com.parvez.auth.security.ConsentEnforcingRegisteredClientRepository;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,7 +47,7 @@ public class AuthorizationServerConfig {
     @Bean
     @DependsOnDatabaseInitialization
     RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbc) {
-        return new JdbcRegisteredClientRepository(jdbc);
+        return new ConsentEnforcingRegisteredClientRepository(new JdbcRegisteredClientRepository(jdbc));
     }
 
     @Bean

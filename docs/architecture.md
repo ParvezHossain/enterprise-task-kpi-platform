@@ -291,3 +291,34 @@ Single-ID and client-ID lookups are bounded by unique constraints.
 OAuth schema V2 and dev/test client seed V2.1 supply the missing OAuth persistence
 prerequisite from TICKET-0102. V1 and V1.1 remain unchanged. The generated login
 page is pulled forward from TICKET-0106 solely to support the full protocol flow.
+
+## Login/logout and consent boundary (TICKET-0106)
+
+[ADR 0011](decisions/0011-login-logout-and-consent-policy.md) completes the generated
+login/logout UI, adds the authenticated `web.AccountController` landing page, and
+limits consent opt-out through `security.ConsentEnforcingRegisteredClientRepository`.
+It wraps the existing JDBC client repository; no dependency or schema changes occur.
+
+The implementation uses the current [Spring Security 7.1.1 logout DSL and cleanup handlers](https://docs.spring.io/spring-security/reference/servlet/authentication/logout.html)
+and its [authorization endpoint consent handling](https://docs.spring.io/spring-security/reference/servlet/oauth2/authorization-server/protocol-endpoints.html).
+We retain generated forms and CSRF/session handling instead of recreating protocol
+controllers. TICKET-0107 replaces the failure redirect with a generic 401 Problem
+Details body. HTTP tests account for cookie expiry semantics (an expired Expires attribute is valid without
+requiring a specific Max-Age serialization).
+
+The logout success URL is left at its framework default (`/login?logout`): explicitly
+setting that same URL marks it custom and prevents the generated login filter from
+rendering the signed-out notice. The logout DSL still explicitly configures session
+invalidation, authentication cleanup and cookie deletion.
+
+## Problem Details boundary (TICKET-0107)
+
+[ADR 0012](decisions/0012-problem-details-boundary.md) defines MVC advice plus an
+outer response normalizer for every application HTTP error. No dependency or
+version changes are needed: Framework 7.0.9 supplies `ProblemDetail` and
+`ResponseEntityExceptionHandler`; Boot's existing Jackson 3 mapper handles JSON.
+`ProblemDetail.forStatusAndDetail` takes `HttpStatusCode` in this API; `type` is explicitly set to `about:blank` because the factory leaves it unset. The normalizer
+serializes the five public members explicitly and preserves only allowlisted OAuth
+error extensions, avoiding exception serialization and Jackson mixin dependence.
+Compatibility references: [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
+and [Spring Framework MVC error responses](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-ann-rest-exceptions.html).

@@ -4,7 +4,7 @@
 
 There is no registration HTTP endpoint yet. `UserService.register(RegistrationRequest)`
 is the Java application-service boundary. Existing HTTP access policy remains in
-[security](security.md); HTTP Problem Details mapping belongs to TICKET-0107.
+[security](security.md); HTTP error mapping is specified below under TICKET-0107.
 
 | Input | Contract |
 | --- | --- |
@@ -62,4 +62,63 @@ returns `invalid_grant`; replaying a code also invalidates its stored authorizat
 Missing/plain PKCE returns `invalid_request`. Bad client credentials return 401
 `invalid_client`. An invalid redirect returns 400 without redirecting to that URL.
 Disabled/missing users cannot exchange or refresh tokens. These are protocol
-responses; login failure redirects to `/login?error` and missing login CSRF is 403.
+responses with an OAuth `error` extension in Problem Details; login failure is 401 and missing login CSRF is 403.
+
+## Login/logout and consent (TICKET-0106)
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /login` | Public HTML login form containing the session-bound `_csrf` field |
+| `POST /login` | Form `username`, `password`, `_csrf`; 302 to the saved authorization request or `/account`, or 401 Problem Details on invalid credentials; missing/invalid CSRF returns 403 |
+| `GET /account` | Authenticated no-store HTML landing page and sign-out link; anonymous HTML requests redirect to `/login` (non-HTML callers receive 401) |
+| `GET /logout` | Confirmation form and fresh `_csrf`; does not terminate authentication |
+| `POST /logout` | Valid CSRF ends the browser session and expires JSESSIONID; 302 to `/login?logout`; missing/foreign CSRF returns 403 and preserves the session |
+| `GET /login?logout` | Public signed-out notice |
+
+First-party clients `task-management-ui` and `kpi-ui` retain their seeded consent
+opt-out; every additional client is consent-required regardless of a false stored
+flag. The standard authorization endpoint displays consent for unapproved data
+scopes and processes approval/denial using its generated transaction state. Denial
+returns `access_denied` to the validated callback without an authorization code.
+The framework can reuse prior consent and does not prompt for openid-only requests.
+
+Session logout does not revoke OAuth grants. The BFF can separately revoke its
+refresh token via `/oauth2/revoke` using Basic client authentication and form
+`token`/`token_type_hint=refresh_token`; subsequent refresh returns `invalid_grant`.
+Already issued access JWTs may remain valid until expiry at offline resource servers.
+The [HTTP example](../requests/auth.http) demonstrates the complete sequence for both
+clients, including rejected CSRF logout and authorization after logout.
+
+## Error responses (TICKET-0107)
+
+Application HTTP 4xx/5xx responses use `Content-Type: application/problem+json`
+and `Cache-Control: no-store`, even for HTML callers. The exact base object is:
+
+```json
+{"type":"about:blank","title":"Unauthorized","status":401,"detail":"Authentication failed or is required.","instance":"/login"}
+```
+
+`title` is the HTTP reason phrase, `status` matches the HTTP status, `detail` is
+fixed public text, and `instance` is the request path without its query. There are
+no timestamps, stack traces, exception names, rejected values, or validation
+messages. Malformed JSON and Bean Validation failures return exactly:
+
+```json
+{"type":"about:blank","title":"Bad Request","status":400,"detail":"The request is invalid.","instance":"/request-path"}
+```
+
+Missing/invalid CSRF and forbidden access return 403; unknown routes accessible
+through security return 404; unsupported methods/content types return 405/415;
+unexpected exceptions return a generic 500. Authentication policy still runs
+before MVC, so protected unknown routes may yield 401/403 or a login redirect.
+Service registration failures map to 400 (invalid input), 409 (email conflict), or
+500 (missing role/persistence failure); this does not add a registration endpoint.
+
+Direct OAuth error responses add only the standard `error` code (for example
+`invalid_grant`) to those five members. HTTP status and protocol headers are
+preserved; untrusted OAuth descriptions/URIs are omitted from both bodies and
+Bearer challenges. Validated OAuth callback
+error redirects and redirects to the login form remain 302 protocol responses,
+not HTTP error bodies. HEAD responses retain HTTP semantics and have no body.
+Errors rejected by the HTTP connector before servlet processing are outside this
+application contract.

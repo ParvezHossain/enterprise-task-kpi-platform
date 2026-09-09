@@ -187,6 +187,159 @@ class AuthorizationCodeFlowIT {
         assertError(refresh(browser, "kpi-ui", token.path("refresh_token").asText()), "invalid_grant");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"task-management-ui", "kpi-ui"})
+    void loginTokenLogoutEndsSessionAndRejectsSessionReplay(String clientId, CapturedOutput output) throws Exception {
+        var browser = browser();
+        String email = UUID.randomUUID() + "@example.org";
+        String password = "Logout-password-" + UUID.randomUUID();
+        users.register(new RegistrationRequest(email, password));
+        var loginPage = get(browser, "/login");
+        String oldSession = sessionId(browser);
+        var login = post(browser, "/login", Map.of("username", " " + email.toUpperCase(java.util.Locale.ROOT) + " ",
+                "password", password, "_csrf", hidden(loginPage.body(), "_csrf")), null, null);
+        assertThat(login.statusCode()).isEqualTo(302);
+        assertThat(login.headers().firstValue("location").orElseThrow()).endsWith("/account");
+        String authenticatedSession = sessionId(browser);
+        assertThat(authenticatedSession).isNotEqualTo(oldSession);
+        var account = get(browser, "/account");
+        assertThat(account.statusCode()).isEqualTo(200);
+        assertThat(account.body()).contains("You are signed in", "Sign out");
+        assertThat(account.headers().firstValue("cache-control").orElseThrow()).contains("no-store");
+
+        String verifier = verifier();
+        String state = UUID.randomUUID().toString();
+        String request = authorization(clientId, verifier, state, "logout-nonce");
+        String code = code(get(browser, request), state, clientId); // No consent UI for the two trusted clients.
+        var response = exchange(browser, clientId, code, verifier);
+        assertThat(response.statusCode()).isEqualTo(200);
+        var token = json.readTree(response.body());
+        assertThat(token.path("access_token").asText()).isNotBlank();
+        var confirmation = get(browser, "/logout");
+        assertThat(confirmation.statusCode()).isEqualTo(200);
+        assertThat(get(browser, "/account").statusCode()).isEqualTo(200); // GET must not sign out.
+        assertThat(post(browser, "/logout", Map.of(), null, null).statusCode()).isEqualTo(403);
+        String foreignCsrf = hidden(get(browser(), "/login").body(), "_csrf");
+        assertThat(post(browser, "/logout", Map.of("_csrf", foreignCsrf), null, null).statusCode()).isEqualTo(403);
+        assertThat(get(browser, "/account").statusCode()).isEqualTo(200);
+        var logout = post(browser, "/logout", Map.of("_csrf", hidden(confirmation.body(), "_csrf")), null, null);
+        assertThat(logout.statusCode()).isEqualTo(302);
+        assertThat(logout.headers().firstValue("location").orElseThrow()).endsWith("/login?logout");
+        assertThat(logout.headers().allValues("set-cookie")).anySatisfy(cookie -> {
+            var parsed = java.net.HttpCookie.parse(cookie).getFirst();
+            assertThat(parsed.getName()).isEqualTo("JSESSIONID");
+            assertThat(parsed.getValue()).isEmpty();
+            assertThat(parsed.hasExpired()).isTrue();
+        });
+        assertThat(get(browser, "/login?logout").statusCode()).isEqualTo(200);
+        var nextAuthorization = get(browser, request);
+        assertThat(nextAuthorization.statusCode()).isEqualTo(302);
+        assertThat(nextAuthorization.headers().firstValue("location")).hasValue(ISSUER + "/login");
+        var replay = send(browser(), HttpRequest.newBuilder(URI.create(ISSUER + "/account"))
+                .header("Accept", "text/html").header("Cookie", "JSESSIONID=" + authenticatedSession).GET());
+        assertThat(replay.statusCode()).isEqualTo(302);
+        assertThat(replay.headers().firstValue("location")).hasValue(ISSUER + "/login");
+
+        // OAuth grants are independent of the browser session; the BFF must revoke its token explicitly.
+        var refreshed = refresh(browser(), clientId, token.path("refresh_token").asText());
+        assertThat(refreshed.statusCode()).isEqualTo(200);
+        var rotated = json.readTree(refreshed.body());
+        String refreshToken = rotated.path("refresh_token").asText();
+        assertThat(post(browser(), "/oauth2/revoke", Map.of("token", refreshToken, "token_type_hint", "refresh_token"),
+                clientId, secret(clientId)).statusCode()).isEqualTo(200);
+        assertError(refresh(browser(), clientId, refreshToken), "invalid_grant");
+        var sensitive = new ArrayList<>(List.of(password, code, verifier, authenticatedSession, secret(clientId)));
+        for (var value : List.of(token, rotated)) {
+            for (String field : List.of("access_token", "id_token", "refresh_token")) {
+                if (value.has(field)) sensitive.add(value.path(field).asText());
+            }
+        }
+        assertThat(output.getAll()).doesNotContain(sensitive.toArray(String[]::new));
+    }
+
+    @Test
+    void loginRejectsMissingCsrfAndUsesTheSameFailureForInvalidOrDisabledUsers(CapturedOutput output) throws Exception {
+        String email = UUID.randomUUID() + "@example.org";
+        String password = "Login-canary-" + UUID.randomUUID();
+        var user = users.register(new RegistrationRequest(email, password));
+        assertThat(post(browser(), "/login", Map.of("username", email, "password", password), null, null).statusCode())
+                .isEqualTo(403);
+        jdbc.update("UPDATE users SET enabled = false WHERE id = ?", user.id());
+        String activeEmail = UUID.randomUUID() + "@example.org";
+        users.register(new RegistrationRequest(activeEmail, password));
+        for (var credentials : List.of(Map.of("username", email, "password", password),
+                Map.of("username", "missing@example.org", "password", password),
+                Map.of("username", activeEmail, "password", "wrong-password"))) {
+            var browser = browser();
+            var form = new LinkedHashMap<>(credentials);
+            form.put("_csrf", hidden(get(browser, "/login").body(), "_csrf"));
+            var failure = post(browser, "/login", form, null, null);
+            assertThat(failure.statusCode()).isEqualTo(401);
+            assertThat(failure.headers().firstValue("content-type").orElseThrow())
+                    .startsWith("application/problem+json");
+            assertThat(json.readTree(failure.body())).isEqualTo(json.readTree("""
+                    {"type":"about:blank","title":"Unauthorized","status":401,
+                     "detail":"Authentication failed or is required.","instance":"/login"}
+                    """));
+            assertThat(failure.headers().firstValue("location")).isEmpty();
+            assertThat(get(browser, "/account").statusCode()).isEqualTo(302);
+        }
+        assertThat(output.getAll()).doesNotContain(password);
+    }
+
+    @Test
+    void additionalClientCannotBypassConsentEvenIfItsStoredFlagIsFalse() throws Exception {
+        String clientId = "third-party-" + UUID.randomUUID();
+        var registered = org.springframework.security.oauth2.server.authorization.client.RegisteredClient.withId(clientId)
+                .clientId(clientId).clientName("External application")
+                .clientAuthenticationMethod(org.springframework.security.oauth2.core.ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .clientSecret("{argon2@SpringSecurity_v5_8}" + new com.parvez.auth.config.PasswordConfiguration()
+                        .passwordEncoder().encode(UUID.randomUUID().toString()))
+                .authorizationGrantType(org.springframework.security.oauth2.core.AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri(redirect("task-management-ui")).scope("openid").scope("profile").scope("email").scope("task.read")
+                .clientSettings(org.springframework.security.oauth2.server.authorization.settings.ClientSettings.builder()
+                        .requireProofKey(true).requireAuthorizationConsent(false).build()).build();
+        new org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository(jdbc).save(registered);
+        try {
+            var browser = browser();
+            String email = UUID.randomUUID() + "@example.org";
+            users.register(new RegistrationRequest(email, "Consent-password-123"));
+            login(browser, email, "Consent-password-123");
+            String request = authorization("task-management-ui", verifier(), "consent-state", "consent-nonce")
+                    .replace("client_id=task-management-ui", "client_id=" + clientId);
+            var consent = get(browser, request);
+            assertThat(consent.statusCode()).isEqualTo(200);
+            assertThat(consent.headers().firstValue("location")).isEmpty();
+            assertThat(consent.body()).contains("task.read", "scope", clientId);
+            var denial = post(browser, "/oauth2/authorize", Map.of("client_id", clientId,
+                    "state", hidden(consent.body(), "state")), null, null);
+            assertThat(denial.statusCode()).isEqualTo(302);
+            assertThat(query(URI.create(denial.headers().firstValue("location").orElseThrow())))
+                    .containsEntry("error", "access_denied").doesNotContainKey("code");
+        } finally {
+            jdbc.update("DELETE FROM oauth2_authorization WHERE registered_client_id = ?", clientId);
+            jdbc.update("DELETE FROM oauth2_authorization_consent WHERE registered_client_id = ?", clientId);
+            jdbc.update("DELETE FROM oauth2_registered_client WHERE id = ?", clientId);
+        }
+    }
+
+    private static String hidden(String html, String name) {
+        var tags = Pattern.compile("<input\\b[^>]*>").matcher(html);
+        while (tags.find()) {
+            String tag = tags.group();
+            if (tag.contains("name=\"" + name + "\"")) {
+                var value = Pattern.compile("value=\"([^\"]*)\"").matcher(tag);
+                if (value.find()) return value.group(1);
+            }
+        }
+        throw new AssertionError("Missing hidden form field: " + name);
+    }
+
+    private static String sessionId(HttpClient browser) {
+        return ((CookieManager) browser.cookieHandler().orElseThrow()).getCookieStore().getCookies().stream()
+                .filter(cookie -> cookie.getName().equals("JSESSIONID")).findFirst().orElseThrow().getValue();
+    }
+
     private String authorization(String clientId, String verifier, String state, String nonce) throws Exception {
         String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256")
                 .digest(verifier.getBytes(StandardCharsets.US_ASCII)));
@@ -225,7 +378,13 @@ class AuthorizationCodeFlowIT {
 
     private void assertError(HttpResponse<String> response, String error) throws Exception {
         assertThat(response.statusCode()).isBetween(400, 401);
-        assertThat(json.readTree(response.body()).path("error").asText()).isEqualTo(error);
+        assertThat(response.headers().firstValue("content-type").orElseThrow()).startsWith("application/problem+json");
+        var body = json.readTree(response.body());
+        assertThat(body).isEqualTo(json.valueToTree(Map.of(
+                "type", "about:blank", "title", response.statusCode() == 401 ? "Unauthorized" : "Bad Request",
+                "status", response.statusCode(), "detail", response.statusCode() == 401
+                        ? "Authentication failed or is required." : "The request is invalid.",
+                "instance", response.request().uri().getPath(), "error", error)));
     }
 
     private HttpResponse<String> post(HttpClient browser, String path, Map<String, String> fields, String id, String secret) throws Exception {

@@ -2,9 +2,12 @@
 
 Java 25 / Spring Boot 4 bootstrap in `com.parvez.auth`. Includes Security,
 Authorization Server, JPA, PostgreSQL, Flyway, Actuator, validation, and springdoc.
-Provides database-backed login, OIDC discovery/UserInfo, authorization code with
+Provides database-backed login, CSRF-protected session logout, OIDC discovery/UserInfo, authorization code with
 S256 PKCE, rotating refresh tokens, and RSA-signed JWTs from configured keys.
-Two confidential BFF clients are seeded only for explicit dev/test use. See the
+Two confidential BFF clients are seeded only for explicit dev/test use. Only these
+trusted first-party IDs may skip consent; other clients require it. Standalone
+login lands on `/account`; `/logout` offers confirmation before a CSRF-protected
+POST. Client token revocation is separate from browser session logout. See the
 [complete OIDC walkthrough](../../docs/development.md#oidc-local-walkthrough-ticket-0105),
 [HTTP requests](../../requests/auth.http), and [security policy](../../docs/security.md).
 

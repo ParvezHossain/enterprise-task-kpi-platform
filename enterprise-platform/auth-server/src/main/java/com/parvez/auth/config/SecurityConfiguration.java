@@ -4,7 +4,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.config.Customizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -19,8 +18,21 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/login", "/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/account").authenticated()
                         .anyRequest().denyAll())
-                .formLogin(Customizer.withDefaults())
+                .formLogin(form -> form
+                        // Honor saved OAuth authorization requests; standalone login has a usable destination.
+                        .defaultSuccessUrl("/account", false)
+                        .failureHandler((request, response, exception) -> response.setStatus(401)))
+                .logout(logout -> logout
+                        // CSRF remains enabled: GET shows confirmation, only POST performs logout.
+                        .logoutUrl("/logout")
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies("JSESSIONID")
+                        // Keep the default /login?logout success URL so the generated
+                        // login filter also renders its signed-out notice.
+                        .permitAll())
                 .exceptionHandling(exceptions -> exceptions
                         // A global entry point suppresses Spring's generated login page.
                         .defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),

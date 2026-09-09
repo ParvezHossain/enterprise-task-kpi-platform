@@ -152,10 +152,12 @@ cp .local/auth/http-client.private.env.json requests/http-client.private.env.jso
 ```
 
 Open [requests/auth.http](../requests/auth.http) in IntelliJ, select environment
-`task`, and run all ten requests in order. Repeat with `kpi`. The HTTP Client keeps
+`task`, and run all twenty requests in order. Repeat with `kpi`. The HTTP Client keeps
 session cookies, captures login CSRF, generates fresh S256 PKCE/state/nonce values,
 exchanges the code, fetches public keys/UserInfo, rotates the refresh token, and
-asserts rejection of replayed credentials. Callbacks need not be running because
+asserts rejection of replayed credentials, revokes offline access, and verifies
+CSRF-protected logout plus denial of subsequent account/authorization access.
+Callbacks need not be running because
 redirect following is disabled for authorization. Keep secret values in the private
 file; do not enable verbose HTTP history or copy secrets into browser JavaScript.
 
@@ -214,3 +216,76 @@ logins. JetBrains HTTP Client CLI 2026.1 (build 261.25134.95) executed this repo
 Generated passwords/client secrets were absent from application logs. Temporary
 application/container processes were removed after verification. `git diff --check`
 passed. Task and KPI remain unchanged skeletons without application tests.
+
+## Login/logout and consent verification (TICKET-0106)
+
+No new dependency, environment variable, profile, migration, or setup service is
+required. Follow the existing OIDC local walkthrough. Standalone login now leads
+to `/account`; its sign-out link opens the generated logout confirmation form.
+First-party consent auto-approval and the third-party consent requirement are
+explained in [security](security.md#login-logout-and-consent-policy-ticket-0106).
+
+Run the focused HTTP suite or the required full build from the repository root:
+
+```sh
+mvn -f enterprise-platform/auth-server/pom.xml verify -Dit.test=AuthorizationCodeFlowIT
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+```
+
+On 2026-09-09, the final full build passed using the writable Maven cache:
+
+```sh
+mvn -Dmaven.repo.local=/tmp/ticket-0104-m2 -f enterprise-platform/auth-server/pom.xml clean verify
+```
+
+Result: 7 unit tests and 16 PostgreSQL integration tests, zero failures/errors/skips.
+New coverage includes both clients' login/token/logout flow, session ID rotation,
+GET logout without side effects, missing/foreign CSRF rejection, old-session replay
+rejection, generic login failure for invalid/disabled users, explicit refresh-token
+revocation, and required third-party consent despite an incorrect stored opt-out.
+Application-log scanning covers passwords, client secrets, session IDs, codes,
+verifiers and issued tokens through the login/logout flow.
+
+The packaged JAR was also exercised with generated keys/credentials and separate
+non-superuser runtime/migration logins against a disposable PostgreSQL database.
+JetBrains HTTP Client CLI 2026.1 executed the actual `requests/auth.http` for both
+`task` and `kpi`: all 20 requests passed for each. The walkthrough includes explicit
+refresh revocation followed by session logout, then verifies that account and
+authorization requests require a new login. Application/container processes were
+cleaned up afterward. Generated-secret scanning and `git diff --check` passed.
+Task and KPI are unchanged skeletons without application tests; no cross-module
+build or dependency change was made in this ticket.
+
+## Problem Details verification (TICKET-0107)
+
+No new dependency, migration, profile, service, or environment variable is needed.
+Invalid login now returns 401 `application/problem+json`, including browser form
+submissions. The other error contracts are in [API documentation](api.md#error-responses-ticket-0107).
+Run from the repository root with Java 25, Maven and Docker available:
+
+```sh
+mvn -f enterprise-platform/auth-server/pom.xml verify -Dit.test=ProblemDetailsIT,AuthorizationCodeFlowIT
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+```
+
+The malformed JSON tests import a test-only DTO controller and security chain;
+they exercise the production advice and servlet boundary over real HTTP without
+exposing a production registration endpoint. Assertions compare the entire object
+for malformed/invalid bodies, invalid login and OAuth errors; they also check CSRF,
+500 sanitization, unsupported media types, 404 responses, HEAD semantics, sanitized
+Bearer challenges and logs.
+`requests/auth.http` asserts Problem Details for token replay and rejected logout.
+
+On 2026-09-09, the full build passed with 7 unit tests and 21 PostgreSQL integration
+tests, zero failures/errors/skips, using:
+
+```sh
+mvn -Dmaven.repo.local=/tmp/ticket-0104-m2 -f enterprise-platform/auth-server/pom.xml clean verify -B -ntp
+```
+
+The packaged JAR also passed all 20 requests in `requests/auth.http` for each of
+`task` and `kpi` using IntelliJ HTTP Client CLI 2026.1, disposable PostgreSQL,
+generated RSA keys/credentials, and separate runtime/migration roles. The script
+converts the CLI's response wrapper to native JSON before enumerating exact
+Problem Details fields. Application-log credential scanning passed. `git diff
+--check` was clean.

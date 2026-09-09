@@ -102,3 +102,12 @@ The explicit development utility creates a separate, private bootstrap-user SQL
 file for the manual walkthrough. It is not a migration or startup seed and must
 never run on a production DB. It atomically provisions one EMPLOYEE after dev
 reference roles exist, without overwriting existing accounts.
+
+## Consent policy in TICKET-0106
+
+No schema or seed migration changes are needed. The existing first-party client
+settings remain unchanged. A repository policy forces consent on reads/writes for
+other client IDs while preserving their remaining settings. This also protects
+against an incorrectly stored third-party consent-opt-out flag. Framework consent
+records continue to use `oauth2_authorization_consent`; local session logout does
+not delete those records or other clients' authorization grants.

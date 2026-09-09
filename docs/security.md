@@ -91,3 +91,58 @@ Hibernate credential-sensitive loggers remain OFF. OAuth HTTP integration tests
 scan application logs for passwords, both client secrets, codes, PKCE verifiers,
 access/ID/refresh tokens, alongside TICKET-0104 registration coverage. Never enable
 request-body or authorization-header logging at an ingress proxy.
+
+## Login, logout, and consent policy (TICKET-0106)
+
+`GET /login` serves Spring Security's generated form, and `POST /login` authenticates
+email/password with the session-bound CSRF token. Login rotates the session ID and
+uses a saved OAuth authorization request when present; otherwise it redirects to
+`/account`. That landing page requires authentication and exposes no identity data.
+Unknown users, wrong passwords, and disabled users get the same generic
+401 Problem Details response. Account and authentication responses retain no-store cache headers.
+
+`GET /logout` only displays confirmation. `POST /logout` requires valid CSRF,
+invalidates the HTTP session, clears its security context and CSRF state, explicitly
+expires JSESSIONID, and redirects to `/login?logout`. Missing/foreign CSRF tokens
+return 403 without logging out the user. Account access and OAuth authorization
+require a new login afterward; replaying the previous session cookie cannot bypass
+this. No arbitrary return-to URL is accepted by the local logout endpoint.
+
+**Why first-party auto-approval is safe here:** `task-management-ui` and `kpi-ui`
+are trusted, operator-owned applications within this platform's trust boundary,
+not third-party clients receiving delegated access. Their scopes are explicitly
+registered, callbacks are exact matches, and confidential-client authentication
+plus S256 PKCE remain required. An extra consent click does not establish additional
+trust for these controlled applications. Their existing dev/test registrations can
+therefore auto-approve consent. Keep these reserved IDs under platform ownership;
+never reuse them for an external application.
+
+`ConsentEnforcingRegisteredClientRepository` permits consent opt-out only for those
+two reserved IDs. Other clients are treated as consent-required even if their stored
+flag says false. Explicit consent-required settings on first-party clients remain
+respected. Third-party data scopes use Spring's generated consent page and validated
+approval/denial flow. Previously granted consent may be reused; an openid-only
+request follows Spring's OIDC exception. Auto-approval never bypasses authentication,
+registered scopes/redirects, PKCE, or backend authorization checks. Dynamic client
+registration stays disabled; production client provisioning is operator-controlled.
+
+Local logout is deliberately **session-only**. Refresh tokens are separate OAuth
+grants: clients that need to end offline access must call `POST /oauth2/revoke` with
+their refresh token and client credentials and clear their own session/token store.
+Offline JWT verification may still accept an issued access token until its five-minute
+expiry. Logout does not silently remove another device's or client's grants. The
+HTTP walkthrough demonstrates revocation plus logout, and tests separately confirm
+these boundaries. See [ADR 0011](decisions/0011-login-logout-and-consent-policy.md).
+
+## Safe error boundary (TICKET-0107)
+
+MVC advice handles malformed input, Bean Validation, authentication/access denial,
+registration failures, and unexpected exceptions. An outer servlet filter also
+normalizes Security, CSRF, OAuth, firewall, and servlet error responses, since they
+do not pass through controller advice. No exception messages, stack traces, request
+bodies, or rejected values are logged by these handlers or returned to clients.
+Only allowlisted OAuth error codes survive normalization; query strings are
+excluded from Problem Details instances. Existing credential-log restrictions
+remain in force. Failed login uses the same 401 body for unknown/disabled users and
+wrong passwords, including HTML callers. CSRF and session protections are unchanged.
+See [the exact error contract](api.md#error-responses-ticket-0107).

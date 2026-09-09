@@ -87,7 +87,12 @@ validation; Failsafe also covers registration persistence, concurrent duplicates
 and password/token log leakage using the explicit test profile. No additional
 registration environment variables are required. OIDC integration tests generate
 RSA keys/client secrets automatically and exercise both seeded clients over real
-HTTP. Manual startup in every profile requires AUTH_ISSUER, AUTH_RSA_PRIVATE_KEY,
+HTTP, including login/token/logout, CSRF rejection, session replay, and third-party
+consent enforcement. ProblemDetailsIT exercises malformed JSON, validation, unexpected
+exceptions and HEAD errors over real HTTP; login and OAuth tests assert exact RFC
+9457 response objects. Its MVC fixtures are test-only. Only the two reserved, trusted first-party client IDs may
+opt out of consent; see `docs/security.md` for the trust rationale and logout/token
+revocation boundary. Manual startup in every profile requires AUTH_ISSUER, AUTH_RSA_PRIVATE_KEY,
 AUTH_RSA_PUBLIC_KEY and AUTH_RSA_KEY_ID; explicit dev/test seeds additionally need
 AUTH_TASK_CLIENT_SECRET_HASH and AUTH_KPI_CLIENT_SECRET_HASH. See
 `docs/development.md` for the exact generated-material and HTTP walkthrough
