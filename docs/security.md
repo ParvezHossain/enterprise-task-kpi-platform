@@ -185,3 +185,14 @@ privileges, and use a read-only root with a writable /tmp. Signing keys are moun
 read-only and must be readable by UID 10001; database credentials are injected
 at runtime. Neither enters Docker build inputs or image layers. The image keeps
 the existing authenticated metrics policy and public health/info policy.
+
+## GitHub Actions delivery permissions
+
+CI executes pull-request code with a read-only repository token via `pull_request`.
+Checkout does not persist credentials. Only the default-branch push publishing job
+receives `packages: write`; it loads the tested image from the same workflow run
+and authenticates to GHCR using the short-lived `GITHUB_TOKEN`. Registry credentials
+are cleared even after failure. No production signing keys, database credentials,
+or deployment secrets are needed; tests generate disposable material. Action
+revisions are pinned and checked weekly by Dependabot. Protect the default branch
+with the verification/container checks described in [development](development.md#github-actions-ci-and-container-delivery).

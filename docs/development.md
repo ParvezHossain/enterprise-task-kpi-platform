@@ -390,3 +390,39 @@ including 12 unit tests in the Maven builder. The smoke command reported Docker
 healthy, HTTP 200/UP, UID 10001, no Maven/javac, a read-only root, and Flyway
 ownership by auth_migrator. Temporary containers were confirmed removed.
 The local image remains tagged `auth-server:local`; arm64 was not smoke-tested.
+
+## GitHub Actions CI and container delivery
+
+[CI and container delivery](../.github/workflows/ci-cd.yml) runs on pull requests,
+all pushes, and manual dispatch. Three parallel jobs use Temurin 25.0.4+7 and
+GitHub-hosted Ubuntu 24.04 with Maven and Docker. Each runs the complete verification
+command above (preferring a Maven wrapper when present), including Auth Failsafe
+and PostgreSQL Testcontainers. No application secrets or external database are
+needed. Task and KPI currently have no application tests. Maven dependencies are
+cached per module; available Surefire/Failsafe reports are retained for seven days,
+including on failure. Each verification job has a 30-minute timeout.
+
+After all modules pass, the workflow builds the Auth Dockerfile and runs the
+existing Python smoke command above; the runner supplies Python 3 and OpenSSL.
+This job has a 30-minute timeout. On a push to the repository's default branch,
+the exact tested image is transferred as a one-day artifact to a separate
+15-minute publishing job. It publishes a linux/amd64 image to
+`ghcr.io/<lowercase-owner>/<lowercase-repository>/auth-server:sha-<full-commit-sha>`.
+There is no mutable `latest` tag. Pull requests, other branches, tags, and manual
+runs verify only. Failed verification or smoke tests prevent publishing.
+
+Enable Actions in repository settings and allow `GITHUB_TOKEN` to write packages.
+No PAT or manually configured secret is required. If that GHCR package already
+exists, grant this repository Actions access in the package settings. Package
+visibility is managed in GHCR. The publishing job alone receives `packages: write`;
+it downloads the current run's image and does not check out or execute repository
+scripts. Configure branch protection to require all three `Verify (...)` jobs and
+`Build and smoke-test Auth container`. Dependabot checks pinned action revisions
+weekly. Superseded PR runs are cancelled; push runs are allowed to finish.
+
+This provides continuous delivery to a registry. A hosting target, runtime secret
+store, and rollout/rollback policy have not been selected, so live deployment is
+not configured. Consumers should deploy the published digest for reproducibility.
+To reproduce checks locally, run all three Maven verification commands, then the
+Docker build and Python smoke commands in the repository contract. Workflow lint:
+`actionlint .github/workflows/ci-cd.yml` (requires actionlint on PATH).

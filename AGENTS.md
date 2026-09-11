@@ -126,3 +126,10 @@ the corresponding change:
 Update `README.md` when setup or entry points change, and link to relevant docs.
 At ticket completion, report what changed, the documentation updated, the commands
 run and their results, and any unresolved blockers.
+
+## CI/CD checks
+
+`.github/workflows/ci-cd.yml` verifies all three modules and runs the Auth image
+build/smoke commands above. For workflow changes, also run
+`actionlint .github/workflows/ci-cd.yml`. Default-branch pushes publish the tested
+Auth image to GHCR; see `docs/development.md` for repository settings and scope.

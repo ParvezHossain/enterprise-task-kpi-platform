@@ -350,3 +350,18 @@ publish linux/amd64 and linux/arm64 variants. Both manifest-list digests were
 resolved with `docker buildx imagetools inspect` and pinned in the Dockerfile.
 The Java 25 runtime matches the existing compiler release and Boot 4.1.1 baseline;
 no application dependency versions or APIs change.
+
+## GitHub Actions delivery
+
+[ADR 0015](decisions/0015-github-actions-container-delivery.md) defines verification
+of all independent modules followed by Auth container smoke testing and GHCR
+publication. CI uses Temurin **25.0.4+7** on **ubuntu-24.04**; no Java dependencies
+or application APIs change. Maven is supplied by the hosted runner (its version
+is printed in each run); project plugin/dependency versions remain in the POMs.
+Actions are pinned to release commits resolved from GitHub's official release/tag
+API on 2026-09-11: [checkout 7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1),
+[setup-java 6.0.1](https://github.com/actions/setup-java/releases/tag/v6.0.1),
+[upload-artifact 7.0.1](https://github.com/actions/upload-artifact/releases/tag/v7.0.1),
+and [download-artifact 8.0.1](https://github.com/actions/download-artifact/releases/tag/v8.0.1).
+Use current GitHub-hosted runners for these action runtimes; self-hosted runners
+and GitHub Enterprise Server are outside this workflow's tested scope.
