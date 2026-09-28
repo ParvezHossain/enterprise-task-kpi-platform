@@ -6,15 +6,16 @@ Application projects live under `enterprise-platform/`. The repository-level
 `docs/` directory remains the canonical location for architectural and development
 documentation; `enterprise-platform/docs/README.md` links here.
 
-| Project | Maven coordinates | Future Java package | Responsibility |
+| Project | Maven coordinates | Java package | Responsibility |
 | --- | --- | --- | --- |
 | `enterprise-platform/auth-server` | `com.parvez:auth-server` | `com.parvez.auth` | Authentication and authorization server |
-| `enterprise-platform/task-management` | `com.parvez:task-management` | `com.parvez.task` | Task management |
+| `enterprise-platform/task-management` | `com.parvez:task-management` | `com.parvez.task` | Task management resource server |
 | `enterprise-platform/kpi-service` | `com.parvez:kpi-service` | `com.parvez.kpi` | KPI service |
 
 All three are independent, parent-less Maven JAR projects targeting Java 25.
 There is no shared parent or aggregator. TICKET-0101 adds the auth-server
-application and dependencies; Task and KPI remain empty skeletons.
+application; TICKET-0201 bootstraps Task as a PostgreSQL-backed OAuth2 resource
+server. KPI remains an empty skeleton.
 See [ADR 0001](decisions/0001-independent-service-skeletons.md).
 
 ## Core decisions (TICKET-0002)
@@ -83,6 +84,17 @@ Spring context, Mockito, and Testcontainers tests on Java 25. This documentation
 decision is now exercised by the auth-server JUnit 6 integration tests using
 Spring context and Testcontainers. Mockito is supplied by the test starter; no
 mocking is needed for the real database/HTTP bootstrap checks.
+
+### Task Management bootstrap (TICKET-0201)
+
+Task uses the same Boot 4.1.1 BOM as Auth Server. The dependency set is managed by
+that BOM and includes Spring Security's OAuth2 Resource Server, Spring Data JPA,
+Flyway, PostgreSQL, Actuator/Micrometer, and validation. springdoc 3.1.1 is pinned,
+matching the Boot 4-compatible version already verified for Auth Server. The
+resource server fetches signing keys from the configurable Auth Server JWKS URL;
+it independently validates the exact issuer, standard JWT timestamps, and the
+`task-management` audience. Task owns its database and migrations; schema changes
+start in TICKET-0202. See [ADR 0016](decisions/0016-task-resource-server-bootstrap.md).
 
 ## Local database boundaries
 

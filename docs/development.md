@@ -4,8 +4,9 @@
 
 Use Java 25 or newer and Maven (no Maven wrapper is present yet). Confirm with
 `java -version` and `mvn -version`; Maven must use the intended JDK.
-Docker is required for auth-server Testcontainers integration tests. For manual
-startup, provision PostgreSQL and export the credentials documented in the
+Docker is required for Auth Server and Task Management Testcontainers integration
+tests. For manual startup, provision PostgreSQL and export the credentials
+documented in the
 [auth-server README](../enterprise-platform/auth-server/README.md). Docker Compose
 orchestration is introduced in later tickets.
 
@@ -24,8 +25,67 @@ or Maven reactor exists. Run all three commands for shared build changes.
 Maven may need network access to download lifecycle plugins on the first build.
 
 Auth-server verification runs real HTTP integration tests against disposable
-PostgreSQL using JUnit 6 and Failsafe. Task and KPI remain empty JAR projects with
-no sources/tests. Their successful builds check only the scaffold lifecycle.
+PostgreSQL using JUnit 6 and Failsafe. Task Management runs real HTTP resource-server
+tests against disposable PostgreSQL and local test JWKS/stub-token fixtures. KPI
+remains an empty JAR project with no application tests.
+
+## Task Management (TICKET-0201)
+
+For manual startup, provision the `task_db` database with separate non-superuser
+runtime and migration roles, then export their credentials and the Auth Server
+issuer/JWKS settings. The runtime role should have only application DML access;
+the migration role owns schema changes. No Task migrations exist before TICKET-0202.
+
+```sh
+export TASK_DB_URL=jdbc:postgresql://localhost:5432/task_db
+export TASK_DB_USERNAME=task_app
+export TASK_DB_PASSWORD='<runtime-password>'
+export TASK_DB_MIGRATION_USERNAME=task_migrator
+export TASK_DB_MIGRATION_PASSWORD='<migration-password>'
+export TASK_AUTH_ISSUER=http://localhost:9000
+export TASK_AUTH_JWK_SET_URI=http://localhost:9000/oauth2/jwks
+export TASK_JWT_AUDIENCE=task-management
+mvn -f enterprise-platform/task-management/pom.xml spring-boot:run
+```
+
+The service listens on port 8082 by default. `GET /actuator/health` and
+`GET /actuator/info` are public. Other routes, including OpenAPI endpoints,
+require a bearer token. `GET /api/v1/whoami` returns the authenticated JWT subject.
+The JWT decoder downloads signing keys from `TASK_AUTH_JWK_SET_URI`, validates
+`iss` against `TASK_AUTH_ISSUER`, applies expiry/not-before checks, and requires
+`TASK_JWT_AUDIENCE`. The Auth Server's Task-scoped access tokens use audience
+`task-management`.
+
+`mvn -f enterprise-platform/task-management/pom.xml clean verify` runs the
+PostgreSQL-backed acceptance test. Docker is required; it checks anonymous 401,
+valid RSA/JWKS authentication, wrong issuer/audience, and expired-token rejection.
+
+### Optional local-stub profile (TICKET-0201a)
+
+For parallel development without Auth Server, start Task with the explicit
+`local-stub` profile after exporting the Task database variables above:
+
+```sh
+mvn -f enterprise-platform/task-management/pom.xml spring-boot:run \
+	-Dspring-boot.run.arguments=--spring.profiles.active=local-stub
+```
+
+The stub accepts only an unsigned JWT using `alg: none`, issuer `local-stub`, a
+non-empty subject, the configured Task audience, and valid `iat`/`exp` timestamps.
+Create a one-hour token and call the protected endpoint with:
+
+```sh
+header=$(printf '%s' '{"alg":"none","typ":"JWT"}' | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+now=$(date +%s)
+payload=$(printf '{"iss":"local-stub","sub":"parallel-dev","aud":["task-management"],"iat":%s,"exp":%s,"scope":"task.read"}' "$now" "$((now + 3600))" | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+export TASK_STUB_JWT="$header.$payload."
+curl --fail-with-body -H "Authorization: Bearer $TASK_STUB_JWT" http://localhost:8082/api/v1/whoami
+```
+
+This token is deliberately unsigned and has no production trust value. The
+`local-stub` profile is not a default; startup fails before application beans
+and database initialization if it is combined with `docker`, `prod`, or `production`. The
+normal profile continues to require Auth Server RS256 signatures.
 
 ## Frontend and Compose placeholders
 

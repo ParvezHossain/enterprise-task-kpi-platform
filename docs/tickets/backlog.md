@@ -718,9 +718,25 @@ com.parvez.task
 
 ### Acceptance Criteria
 
-- [ ] Application boots.
-- [ ] Protected endpoint returns `401` without authentication.
-- [ ] Valid Auth Server JWT reaches the controller.
+- [x] Application boots.
+- [x] Protected endpoint returns `401` without authentication.
+- [x] Valid Auth Server JWT reaches the controller.
+
+---
+
+## TICKET-0201a — Stub JWT for Parallel Development (Optional)
+
+### Tasks
+
+- Add an explicitly activated `local-stub` profile with an isolated unsigned JWT decoder.
+- Reject startup when `local-stub` is combined with `docker`, `prod`, or `production`.
+- Keep real issuer, signature, expiry, and audience validation as the default.
+
+### Acceptance Criteria
+
+- [x] The `local-stub` profile starts and accepts a stub JWT.
+- [x] Stub validation cannot be enabled with Docker or production profiles.
+- [x] Real JWT validation remains unchanged and rejects unsigned stub tokens.
 
 ---
 

@@ -56,6 +56,17 @@ permission names). Task scopes add audience `task-management`; `kpi.read` adds
 by Task/KPI. ID tokens retain the client audience and requested nonce; email is
 included only with the email scope, without an `email_verified` assertion.
 
+## Task resource server bootstrap
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /api/v1/whoami` | Requires a valid Auth Server access JWT with the configured issuer, unexpired timestamps, and `task-management` audience; returns `{"subject":"<JWT sub>"}`. |
+| `GET /actuator/health`, `GET /actuator/info` | Public service status endpoints. |
+
+OpenAPI JSON/UI endpoints are authenticated. This bootstrap endpoint verifies
+resource-server identity propagation; task domain endpoints are introduced by
+subsequent tickets.
+
 Codes expire after two minutes and are single-use. Access JWTs live five minutes;
 refresh tokens live eight hours and rotate on use. A rotated token or replayed code
 returns `invalid_grant`; replaying a code also invalidates its stored authorization.

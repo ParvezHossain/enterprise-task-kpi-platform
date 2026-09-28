@@ -84,6 +84,30 @@ Consumers must validate signature, issuer, audience, expiry, scopes and role/
 ownership/tenant policies. A signed role claim alone is not resource authorization.
 JWTs already issued to a subsequently disabled user last at most five minutes.
 
+## Task Management resource server (TICKET-0201)
+
+Task Management is a stateless bearer-token resource server. It retrieves signing
+keys from the configurable Auth Server JWKS endpoint and validates the issuer,
+signature, `exp`/`nbf`, and `task-management` audience before allowing a request to
+reach a controller. The default issuer and JWKS URL target local Auth Server port
+9000; deployments must configure `TASK_AUTH_ISSUER` and
+`TASK_AUTH_JWK_SET_URI` together. The required audience defaults to
+`task-management`. Only health and info actuator endpoints are public; all other
+routes, including OpenAPI documentation, require authentication. JWT scopes and
+application authorization policies will be enforced by the task APIs as they are
+introduced; authentication alone does not authorize task ownership or tenant access.
+
+### Local parallel-development stub (TICKET-0201a)
+
+The optional `local-stub` profile replaces only the JWT decoder with an isolated
+decoder that accepts unsigned `alg: none` JWTs carrying issuer `local-stub`, a
+non-empty subject, the Task audience, and valid timestamps. It exists only to let
+parallel developers exercise authenticated controller flows without a running Auth
+Server; it does not verify a cryptographic signature and is not authentication.
+The profile is never active by default, and startup fails before application
+initialization if it is combined with `docker`, `prod`, or `production`. All other
+profiles retain the real JWKS-backed issuer/signature/expiry/audience validation.
+
 Authorization grants and opaque tokens are persisted by Spring's JDBC service;
 treat that database and its backups as secret stores. Spring Security and JDBC
 core logging remain INFO to avoid protocol/token/parameter TRACE output. Existing

@@ -1,5 +1,15 @@
 # Database
 
+## Task Management database bootstrap (TICKET-0201)
+
+Task Management connects only to its own PostgreSQL `task_db` using
+`TASK_DB_USERNAME`/`TASK_DB_PASSWORD` for runtime access and separate
+`TASK_DB_MIGRATION_USERNAME`/`TASK_DB_MIGRATION_PASSWORD` credentials for Flyway.
+The database URL defaults to `jdbc:postgresql://localhost:5432/task_db` and can be
+overridden with `TASK_DB_URL`. Hibernate schema handling is `validate`; Flyway owns
+all schema changes. No Task tables or migrations are added in this bootstrap;
+TICKET-0202 introduces them.
+
 ## Auth identity schema
 
 The repository did not yet contain TICKET-0102 migrations when TICKET-0103 began.
