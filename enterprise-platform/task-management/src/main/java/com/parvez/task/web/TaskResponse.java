@@ -15,6 +15,7 @@ public record TaskResponse(
         UUID assignedTo,
         UUID teamId,
         UUID projectId,
+        UUID createdBy,
         LocalDate dueDate,
         Instant createdAt,
         Instant updatedAt,

@@ -44,6 +44,9 @@ public class TaskEntity {
     @Column(name = "project_id", nullable = false)
     private UUID projectId;
 
+    @Column(name = "created_by")
+    private UUID createdBy;
+
     @Column(name = "due_date")
     private LocalDate dueDate;
 
@@ -70,7 +73,7 @@ public class TaskEntity {
     }
 
     public static TaskEntity draft(String title, String description, TaskPriority priority,
-            UUID teamId, UUID projectId, LocalDate dueDate) {
+            UUID teamId, UUID projectId, UUID createdBy, LocalDate dueDate) {
         TaskEntity task = new TaskEntity();
         task.title = title;
         task.description = description;
@@ -78,6 +81,7 @@ public class TaskEntity {
         task.priority = priority.name();
         task.teamId = teamId;
         task.projectId = projectId;
+        task.createdBy = createdBy;
         task.dueDate = dueDate;
         task.createdAt = Instant.now();
         task.updatedAt = task.createdAt;
@@ -124,6 +128,10 @@ public class TaskEntity {
 
     public UUID getProjectId() {
         return projectId;
+    }
+
+    public UUID getCreatedBy() {
+        return createdBy;
     }
 
     public LocalDate getDueDate() {

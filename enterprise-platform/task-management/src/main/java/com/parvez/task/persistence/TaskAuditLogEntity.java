@@ -39,4 +39,32 @@ public class TaskAuditLogEntity {
 
     protected TaskAuditLogEntity() {
     }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getActorId() {
+        return actorId;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public String getPreviousStatus() {
+        return previousStatus;
+    }
+
+    public String getNewStatus() {
+        return newStatus;
+    }
+
+    public String getMetadata() {
+        return metadata;
+    }
+
+    public Instant getOccurredAt() {
+        return occurredAt;
+    }
 }

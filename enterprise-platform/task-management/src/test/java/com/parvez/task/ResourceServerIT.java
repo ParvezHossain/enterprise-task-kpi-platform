@@ -10,6 +10,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
@@ -81,6 +82,7 @@ class ResourceServerIT {
         properties.add("spring.flyway.user", POSTGRES::getUsername);
         properties.add("spring.flyway.password", POSTGRES::getPassword);
         properties.add("spring.flyway.placeholders.runtimeRole", POSTGRES::getUsername);
+        properties.add("task.query.maximum-page-size", () -> 2);
         properties.add("task.security.jwt.issuer", () -> ISSUER);
         properties.add("task.security.jwt.jwk-set-uri", () -> JWK_SET_URI);
     }
@@ -140,10 +142,11 @@ class ResourceServerIT {
         void projectManagerCanCreateTaskAndReceivesResponseDto() throws Exception {
         UUID teamId = createProject();
         UUID projectId = jdbcTemplate.queryForObject("SELECT id FROM projects WHERE team_id = ?", UUID.class, teamId);
+            UUID projectManagerId = UUID.randomUUID();
         String requestBody = taskRequest("Review API", "HIGH", projectId, teamId);
 
         HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
-            List.of("PROJECT_MANAGER")), requestBody);
+                List.of("PROJECT_MANAGER"), projectManagerId.toString()), requestBody);
 
         assertThat(response.statusCode()).isEqualTo(201);
         assertThat(response.headers().firstValue("location").orElseThrow()).contains("/api/v1/tasks/");
@@ -156,9 +159,10 @@ class ResourceServerIT {
         void adminCanCreateTask() throws Exception {
         UUID teamId = createProject();
         UUID projectId = jdbcTemplate.queryForObject("SELECT id FROM projects WHERE team_id = ?", UUID.class, teamId);
+            UUID adminId = UUID.randomUUID();
 
         HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
-            List.of("ADMIN")), taskRequest("Admin task", "MEDIUM", projectId, teamId));
+                List.of("ADMIN"), adminId.toString()), taskRequest("Admin task", "MEDIUM", projectId, teamId));
 
         assertThat(response.statusCode()).isEqualTo(201);
         }
@@ -339,6 +343,144 @@ class ResourceServerIT {
         }
 
         @Test
+        void queryEndpointsEnforceRoleScopesAndServerPageSizeCap() throws Exception {
+        QueryFixture fixture = insertQueryFixture();
+        String managerToken = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER"), fixture.creatorId().toString());
+        String employeeToken = employeeToken(fixture.employeeOneId());
+        String leaderToken = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("TEAM_LEADER"), fixture.leaderId().toString());
+
+        HttpResponse<String> allFirstPage = get(managerToken,
+            "/api/v1/tasks?createdBy=" + fixture.creatorId() + "&size=999&sortBy=TITLE&direction=ASC");
+        assertThat(allFirstPage.statusCode()).isEqualTo(200);
+        assertThat(allFirstPage.body()).contains("\"size\":2", "\"totalElements\":4", "A assigned");
+        assertThat(allFirstPage.body().indexOf("A assigned"))
+            .isLessThan(allFirstPage.body().indexOf("A other team"));
+
+        String adminToken = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("ADMIN"), UUID.randomUUID().toString());
+        HttpResponse<String> adminAll = get(adminToken,
+            "/api/v1/tasks?createdBy=" + fixture.creatorId() + "&size=999");
+        assertThat(adminAll.statusCode()).isEqualTo(200);
+        assertThat(adminAll.body()).contains("\"totalElements\":4", "\"size\":2");
+
+        HttpResponse<String> allSecondPage = get(managerToken,
+            "/api/v1/tasks?createdBy=" + fixture.creatorId() + "&page=1&size=999&sortBy=TITLE&direction=ASC");
+        assertThat(allSecondPage.body()).contains("\"page\":1", "\"size\":2", "B assigned", "Unassigned");
+
+        HttpResponse<String> mine = get(employeeToken, "/api/v1/tasks/me?size=999");
+        assertThat(mine.statusCode()).isEqualTo(200);
+        assertThat(mine.body()).contains("\"size\":2", "\"totalElements\":2", "A assigned", "A other team");
+        assertThat(get(employeeToken, "/api/v1/tasks").statusCode()).isEqualTo(403);
+
+        HttpResponse<String> team = get(leaderToken,
+            "/api/v1/tasks/team?teamId=" + fixture.teamOneId() + "&size=999");
+        assertThat(team.statusCode()).isEqualTo(200);
+        assertThat(team.body()).contains("\"totalElements\":3", "\"size\":2");
+        assertThat(get(leaderToken, "/api/v1/tasks/team?teamId=" + fixture.teamTwoId()).statusCode())
+            .isEqualTo(403);
+        }
+
+        @Test
+        void taskSpecificationsApplyEveryDocumentedFilter() throws Exception {
+        QueryFixture fixture = insertQueryFixture();
+        String managerToken = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER"), fixture.creatorId().toString());
+        String creator = "createdBy=" + fixture.creatorId();
+
+        assertQueryHasOne(managerToken, "/api/v1/tasks?" + creator + "&status=COMPLETED");
+        assertQueryHasOne(managerToken, "/api/v1/tasks?" + creator + "&priority=URGENT");
+        assertQueryHasOne(managerToken, "/api/v1/tasks?" + creator + "&assignedTo=" + fixture.employeeTwoId());
+        assertQueryHasOne(managerToken, "/api/v1/tasks?" + creator + "&teamId=" + fixture.teamTwoId());
+        assertQueryHasOne(managerToken, "/api/v1/tasks?" + creator + "&projectId=" + fixture.projectTwoId());
+        assertQueryHasOne(managerToken, "/api/v1/tasks?" + creator
+            + "&createdFrom=2026-01-02T00:00:00Z&createdTo=2026-01-02T23:59:59Z");
+        assertQueryHasOne(managerToken, "/api/v1/tasks?createdBy=" + fixture.otherCreatorId());
+        }
+
+        @Test
+        void rejectsReversedCreationDateRangeWithProblemDetail() throws Exception {
+        QueryFixture fixture = insertQueryFixture();
+        String managerToken = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER"), fixture.creatorId().toString());
+
+        HttpResponse<String> response = get(managerToken,
+            "/api/v1/tasks?createdFrom=2026-01-03T00:00:00Z&createdTo=2026-01-02T00:00:00Z");
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertProblemDetail(response, "Invalid query");
+        }
+
+        @Test
+        void ownTaskQueryCannotBeWidenedByAssigneeFilterAndDetailsRespectVisibility() throws Exception {
+        QueryFixture fixture = insertQueryFixture();
+        String employeeToken = employeeToken(fixture.employeeOneId());
+
+        HttpResponse<String> widened = get(employeeToken,
+            "/api/v1/tasks/me?assignedTo=" + fixture.employeeTwoId());
+        assertThat(widened.statusCode()).isEqualTo(200);
+        assertThat(widened.body()).contains("\"totalElements\":0");
+
+        assertThat(get(employeeToken, "/api/v1/tasks/" + fixture.employeeOneTaskId()).statusCode())
+            .isEqualTo(200);
+        assertThat(get(employeeToken, "/api/v1/tasks/" + fixture.employeeTwoTaskId()).statusCode())
+            .isEqualTo(404);
+        }
+
+        @Test
+        void taskHistoryIsVisibleOnlyToUsersWhoCanReadTheTaskAndIsPaged() throws Exception {
+        QueryFixture fixture = insertQueryFixture();
+        String employeeToken = employeeToken(fixture.employeeOneId());
+
+        HttpResponse<String> history = get(employeeToken,
+            "/api/v1/tasks/" + fixture.employeeOneTaskId() + "/history?size=999");
+        assertThat(history.statusCode()).isEqualTo(200);
+        assertThat(history.body()).contains("\"size\":2", "\"totalElements\":1", "\"action\":\"CREATED\"");
+        assertThat(get(employeeToken, "/api/v1/tasks/" + fixture.employeeTwoTaskId() + "/history").statusCode())
+            .isEqualTo(404);
+        }
+
+    @Test
+    void queryParametersCannotBypassRolesAndInvalidPaginationIsRejected() throws Exception {
+        QueryFixture fixture = insertQueryFixture();
+        String employee = employeeToken(fixture.employeeOneId());
+        String leader = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+                List.of("TEAM_LEADER"), fixture.leaderId().toString());
+        for (String role : List.of("ADMIN", "PROJECT_MANAGER")) {
+            String privileged = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+                    List.of(role), fixture.creatorId().toString());
+            assertThat(get(privileged, "/api/v1/tasks/team?teamId=" + fixture.teamTwoId()).statusCode())
+                    .isEqualTo(200);
+            assertThat(get(privileged, "/api/v1/tasks/" + fixture.employeeTwoTaskId()).statusCode())
+                    .isEqualTo(200);
+        }
+        assertThat(get(employee, "/api/v1/tasks/team?teamId=" + fixture.teamOneId()
+                + "&assignedTo=" + fixture.employeeOneId()).statusCode()).isEqualTo(403);
+        assertThat(get(leader, "/api/v1/tasks?teamId=" + fixture.teamOneId()).statusCode()).isEqualTo(403);
+        assertThat(get(leader, "/api/v1/tasks/" + fixture.employeeOneOtherTeamTaskId()).statusCode())
+                .isEqualTo(403);
+        assertThat(get(leader, "/api/v1/tasks/" + fixture.employeeOneOtherTeamTaskId() + "/history")
+                .statusCode()).isEqualTo(403);
+        assertThat(get(leader, "/api/v1/tasks/" + fixture.employeeTwoTaskId()).statusCode()).isEqualTo(200);
+        assertThat(get(leader, "/api/v1/tasks/team").statusCode()).isEqualTo(400);
+        for (String query : List.of("page=-1", "size=0", "size=-1", "page=2147483647&size=2",
+                "size=abc", "sortBy=assignedTo", "direction=INVALID", "status=INVALID",
+                "priority=INVALID", "assignedTo=invalid", "createdFrom=invalid")) {
+            HttpResponse<String> response = get(employee, "/api/v1/tasks/me?" + query);
+            assertThat(response.statusCode()).as(query).isEqualTo(400);
+            assertThat(response.headers().firstValue("content-type").orElseThrow())
+                    .contains("application/problem+json");
+        }
+        HttpResponse<String> capped = get(employee, "/api/v1/tasks/me?size=2147483647");
+        assertThat(capped.statusCode()).isEqualTo(200);
+        assertThat(capped.body()).contains("\"size\":2");
+        assertThat(get(employee, "/api/v1/tasks/me").body()).contains("\"size\":2");
+        assertThat(get(employee, "/api/v1/tasks/me?page=10").body())
+                .contains("\"content\":[]", "\"totalElements\":2");
+    }
+
+        @Test
         void migrationCreatesRequiredTaskIndexesAndForeignKeys() {
         var taskIndexes = jdbcTemplate.queryForList(
             "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'tasks'",
@@ -353,7 +495,7 @@ class ResourceServerIT {
 
         assertThat(taskIndexes).contains(
             "idx_tasks_assigned_to", "idx_tasks_team_id", "idx_tasks_status",
-            "idx_tasks_created_at", "idx_tasks_due_date", "idx_tasks_project_id");
+            "idx_tasks_created_at", "idx_tasks_due_date", "idx_tasks_project_id", "idx_tasks_created_by");
         assertThat(schemaIndexes).contains("idx_team_memberships_user_id", "idx_team_leaderships_user_id",
             "idx_task_audit_log_task_occurred_at");
         assertThat(schemaForeignKeys).contains(
@@ -404,7 +546,11 @@ class ResourceServerIT {
         }
 
     private HttpResponse<String> get(String token) throws Exception {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(endpoint())).GET();
+        return get(token, "/api/v1/whoami");
+    }
+
+    private HttpResponse<String> get(String token, String path) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).GET();
         if (token != null) {
             request.header("Authorization", "Bearer " + token);
         }
@@ -430,6 +576,7 @@ class ResourceServerIT {
         UUID leaderId = UUID.randomUUID();
         UUID employeeOneId = UUID.randomUUID();
         UUID employeeTwoId = UUID.randomUUID();
+        UUID projectManagerId = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?)",
                 projectId, teamId, "project-" + projectId);
         jdbcTemplate.update("INSERT INTO team_memberships (team_id, user_id) VALUES (?, ?), (?, ?), (?, ?)",
@@ -437,11 +584,12 @@ class ResourceServerIT {
         jdbcTemplate.update("INSERT INTO team_leaderships (team_id, user_id) VALUES (?, ?)", teamId, leaderId);
 
         HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
-                List.of("PROJECT_MANAGER")), taskRequest("Workflow task", "HIGH", projectId, teamId));
+            List.of("PROJECT_MANAGER"), projectManagerId.toString()),
+            taskRequest("Workflow task", "HIGH", projectId, teamId));
         assertThat(response.statusCode()).isEqualTo(201);
         String location = response.headers().firstValue("location").orElseThrow();
         UUID taskId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-        return new TaskWorkflow(taskId, teamId, leaderId, employeeOneId, employeeTwoId);
+        return new TaskWorkflow(taskId, teamId, leaderId, employeeOneId, employeeTwoId, projectManagerId);
     }
 
     private TaskWorkflow createAssignedTask() throws Exception {
@@ -453,6 +601,67 @@ class ResourceServerIT {
         assertThat(assignment.statusCode()).isEqualTo(200);
         return workflow;
     }
+
+        private QueryFixture insertQueryFixture() {
+        UUID teamOneId = createTeam();
+        UUID teamTwoId = createTeam();
+        UUID projectOneId = UUID.randomUUID();
+        UUID projectTwoId = UUID.randomUUID();
+        UUID employeeOneId = UUID.randomUUID();
+        UUID employeeTwoId = UUID.randomUUID();
+        UUID leaderId = UUID.randomUUID();
+        UUID creatorId = UUID.randomUUID();
+        UUID otherCreatorId = UUID.randomUUID();
+        UUID employeeOneTaskId = UUID.randomUUID();
+        UUID employeeTwoTaskId = UUID.randomUUID();
+        UUID employeeOneOtherTeamTaskId = UUID.randomUUID();
+        UUID otherCreatorTaskId = UUID.randomUUID();
+
+        jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?), (?, ?, ?)",
+            projectOneId, teamOneId, "project-one-" + projectOneId,
+            projectTwoId, teamTwoId, "project-two-" + projectTwoId);
+        jdbcTemplate.update("INSERT INTO team_memberships (team_id, user_id) VALUES "
+                + "(?, ?), (?, ?), (?, ?), (?, ?)",
+            teamOneId, employeeOneId, teamOneId, employeeTwoId, teamOneId, leaderId,
+            teamTwoId, employeeOneId);
+        jdbcTemplate.update("INSERT INTO team_leaderships (team_id, user_id) VALUES (?, ?)", teamOneId, leaderId);
+
+        insertQueryTask(employeeOneTaskId, "A assigned", "IN_PROGRESS", "HIGH", employeeOneId,
+            teamOneId, projectOneId, creatorId, Instant.parse("2026-01-01T00:00:00Z"));
+        insertQueryTask(employeeTwoTaskId, "B assigned", "COMPLETED", "MEDIUM", employeeTwoId,
+            teamOneId, projectOneId, creatorId, Instant.parse("2026-01-02T00:00:00Z"));
+        insertQueryTask(employeeOneOtherTeamTaskId, "A other team", "DRAFT", "LOW", employeeOneId,
+            teamTwoId, projectTwoId, creatorId, Instant.parse("2026-01-03T00:00:00Z"));
+        insertQueryTask(UUID.randomUUID(), "Unassigned", "DRAFT", "URGENT", null,
+            teamOneId, projectOneId, creatorId, Instant.parse("2026-01-04T00:00:00Z"));
+        insertQueryTask(otherCreatorTaskId, "Other creator", "DRAFT", "LOW", null,
+            teamTwoId, projectTwoId, otherCreatorId, Instant.parse("2026-01-05T00:00:00Z"));
+        jdbcTemplate.update("INSERT INTO task_audit_log (id, task_id, actor_id, action, new_status, occurred_at) "
+                + "VALUES (?, ?, ?, ?, ?, ?)", UUID.randomUUID(), employeeOneTaskId, leaderId,
+            "CREATED", "IN_PROGRESS", Timestamp.from(Instant.parse("2026-01-01T01:00:00Z")));
+        return new QueryFixture(teamOneId, teamTwoId, projectOneId, projectTwoId, employeeOneId,
+            employeeTwoId, leaderId, creatorId, otherCreatorId, employeeOneTaskId, employeeTwoTaskId,
+            employeeOneOtherTeamTaskId);
+        }
+
+        private void insertQueryTask(UUID taskId, String title, String status, String priority, UUID assignedTo,
+            UUID teamId, UUID projectId, UUID createdBy, Instant createdAt) {
+        jdbcTemplate.update("INSERT INTO tasks (id, title, status, priority, assigned_to, team_id, project_id, "
+                + "created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            taskId, title, status, priority, assignedTo, teamId, projectId, createdBy,
+            Timestamp.from(createdAt), Timestamp.from(createdAt));
+        }
+
+        private void assertQueryHasOne(String jwt, String path) throws Exception {
+        HttpResponse<String> response = get(jwt, path);
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"totalElements\":1");
+        }
+
+        private record QueryFixture(UUID teamOneId, UUID teamTwoId, UUID projectOneId, UUID projectTwoId,
+            UUID employeeOneId, UUID employeeTwoId, UUID leaderId, UUID creatorId, UUID otherCreatorId,
+            UUID employeeOneTaskId, UUID employeeTwoTaskId, UUID employeeOneOtherTeamTaskId) {
+        }
 
     private HttpResponse<String> approve(TaskWorkflow workflow) throws Exception {
         return post(leaderToken(workflow), "/api/v1/tasks/" + workflow.taskId() + "/approve",
@@ -497,7 +706,8 @@ class ResourceServerIT {
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private record TaskWorkflow(UUID taskId, UUID teamId, UUID leaderId, UUID employeeOneId, UUID employeeTwoId) {
+        private record TaskWorkflow(UUID taskId, UUID teamId, UUID leaderId, UUID employeeOneId,
+            UUID employeeTwoId, UUID projectManagerId) {
     }
 
     private UUID createProject() {

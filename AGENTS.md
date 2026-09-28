@@ -64,8 +64,8 @@ Record version choices, compatibility evidence, and API migration notes in
 
 The repository has three independent, parent-less Maven projects under
 `enterprise-platform/`; there is no root POM or reactor. Auth server is a Boot
-application with PostgreSQL Testcontainers integration tests; Task and KPI remain
-empty skeletons. When adding or changing a module,
+application with PostgreSQL Testcontainers integration tests; Task is a resource
+server with PostgreSQL-backed lifecycle and query tests; KPI remains an empty skeleton. When adding or changing a module,
 update this section and `docs/development.md` with its exact commands,
 prerequisites, profiles, and service setup.
 
@@ -81,6 +81,11 @@ below use `mvn`; substitute the wrapper as appropriate.
 | Auth image, from repository root | `docker build -t auth-server:local enterprise-platform/auth-server` | Build source and run unit tests; run Maven verify separately. |
 | Auth container smoke, from repository root | `python3 scripts/smoke-auth-container.py --image auth-server:local` | Requires local Docker, Python 3 and OpenSSL; provisions disposable PostgreSQL/keys and verifies container health. |
 | Fast unit-test feedback, from the applicable Maven project | `mvn test` | Run unit tests during development; this does not replace final verification. |
+
+Task query tests use generated JWTs, local JWKS and disposable PostgreSQL, with a
+page-size cap of two to verify database pagination, filters, role boundaries,
+detail/history visibility and invalid query handling. No extra environment variables
+are needed for these tests; manual query limits use `TASK_MAX_PAGE_SIZE` (default 100).
 
 Configure Maven Surefire/Failsafe as needed so `verify` actually runs the required
 JUnit 6, Mockito, and Testcontainers tests. Docker must be available for

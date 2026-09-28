@@ -66,6 +66,12 @@ public final class TaskAuthorizationPolicy {
                 && actor.subject().equals(target.assignedTo().toString());
     }
 
+        public boolean canReadTask(TaskActor actor, TaskAuthorizationTarget target) {
+                return allows(actor, TaskAction.READ_ALL_TASKS, null)
+                                || allows(actor, TaskAction.READ_OWN_TASKS, target)
+                                || allows(actor, TaskAction.READ_TEAM_TASKS, target);
+        }
+
     private boolean canReadTeam(TaskActor actor, TaskAuthorizationTarget target) {
         if (target == null || target.teamId() == null) {
             return false;

@@ -9,6 +9,7 @@ import com.parvez.task.persistence.TaskRepository;
 import com.parvez.task.web.CreateTaskRequest;
 import com.parvez.task.web.TaskResponse;
 import com.parvez.task.web.TaskResponseMapper;
+import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,8 +38,15 @@ public class TaskCreationService {
             throw new InvalidTaskReferenceException();
         }
 
+        UUID creatorId;
+        try {
+            creatorId = UUID.fromString(actor.subject());
+        } catch (IllegalArgumentException exception) {
+            throw new AccessDeniedException("Authenticated subject is not a valid user identifier");
+        }
         TaskEntity saved = tasks.save(TaskEntity.draft(request.title(), request.description(),
-                request.priority(), request.teamId(), request.projectId(), request.dueDate()));
+            request.priority(), request.teamId(), request.projectId(), creatorId,
+            request.dueDate()));
         return responseMapper.toResponse(saved);
     }
 }

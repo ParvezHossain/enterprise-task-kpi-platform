@@ -21,6 +21,8 @@ spring:
     placeholders:
       runtimeRole: ${TASK_DB_USERNAME}
 task:
+  query:
+    maximum-page-size: ${TASK_MAX_PAGE_SIZE:100}
   security:
     jwt:
       issuer: ${TASK_AUTH_ISSUER:http://localhost:9000}

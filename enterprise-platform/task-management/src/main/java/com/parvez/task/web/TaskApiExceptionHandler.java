@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import com.parvez.task.service.InvalidTaskReferenceException;
+import com.parvez.task.service.InvalidTaskQueryException;
 import com.parvez.task.service.TaskNotFoundException;
 import com.parvez.task.service.TaskVersionConflictException;
 import com.parvez.task.domain.InvalidTaskTransitionException;
@@ -17,6 +18,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.validation.BindException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -41,6 +44,13 @@ public class TaskApiExceptionHandler {
         return response(problem(HttpStatus.BAD_REQUEST, "Invalid request",
                 "The request body is malformed or contains an unsupported value.",
                 "urn:task-management:problem:invalid-request", request));
+    }
+
+    @ExceptionHandler({InvalidTaskQueryException.class, BindException.class,
+            MethodArgumentTypeMismatchException.class})
+    ResponseEntity<ProblemDetail> invalidQuery(Exception exception, HttpServletRequest request) {
+        return response(problem(HttpStatus.BAD_REQUEST, "Invalid query", "The query parameters are invalid.",
+                "urn:task-management:problem:invalid-query", request));
     }
 
     @ExceptionHandler(InvalidTaskReferenceException.class)

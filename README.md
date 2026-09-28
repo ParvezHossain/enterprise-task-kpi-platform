@@ -5,7 +5,9 @@ It contains three independent Maven backend projects and two static frontend
 placeholders. The [auth server](enterprise-platform/auth-server/README.md) boots
 against PostgreSQL and exposes public health/info and authenticated metrics
 endpoints. Task Management now has its resource-server bootstrap, initial schema,
-domain lifecycle, and authorization policy; KPI remains a skeleton.
+domain lifecycle, authorization policy, and [task query APIs](docs/api.md) for
+my/team/all tasks, details and paginated history. Queries support server-side
+filters and a configurable page-size cap; KPI remains a skeleton.
 
 - [Directory structure and build commands](enterprise-platform/README.md)
 - [Repository contract](AGENTS.md)

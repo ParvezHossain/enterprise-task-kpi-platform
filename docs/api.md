@@ -67,6 +67,11 @@ included only with the email scope, without an `email_verified` assertion.
 | `POST /api/v1/tasks/{id}/assign` | Admin or a Team Leader managing the task's team; requires `employeeId` and current `version`; assignee must be a member of the task team. |
 | `PATCH /api/v1/tasks/{id}/status` | An Employee may start their own assigned task (`APPROVED` → `IN_PROGRESS`) or complete it (`IN_PROGRESS` → `COMPLETED`); requires target `status` and current `version`. |
 | `POST /api/v1/tasks/{id}/close` | Admin or Project Manager may close a completed task; requires current `version`. |
+| `GET /api/v1/tasks` | Admin/Project Manager all-task query, using bounded pagination and optional filters. |
+| `GET /api/v1/tasks/me` | Returns only tasks assigned to the authenticated subject, even when `assignedTo` is supplied as a filter. |
+| `GET /api/v1/tasks/team?teamId=...` | Admin/Project Manager may query a team; Team Leaders are limited to managed teams. |
+| `GET /api/v1/tasks/{id}` | Returns a task DTO after role/ownership/team visibility checks. Employees receive 404 for another employee's task. |
+| `GET /api/v1/tasks/{id}/history` | Returns a page of audit DTOs after the same task visibility check. |
 
 OpenAPI JSON/UI endpoints are authenticated. This bootstrap endpoint verifies
 resource-server identity propagation; task domain endpoints are introduced by
@@ -90,6 +95,23 @@ cross-database foreign keys.
 Employees receive `404` when they address another employee's task by ID, avoiding
 confirmation that the resource exists. Invalid lifecycle transitions and stale
 versions return `409` Problem Details.
+
+List endpoints accept `page` (zero-based), `size`, `sortBy`, and
+`direction` (`ASC`/`DESC`). History accepts `page` and `size` and always orders by
+`occurredAt DESC, id ASC`; task filters and requested sorting do not alter history. `size` defaults to 20 and is capped by
+`TASK_MAX_PAGE_SIZE` (default 100). Sort fields are allowlisted: `CREATED_AT`,
+`UPDATED_AT`, `DUE_DATE`, `TITLE`, `STATUS`, and `PRIORITY`; task lists add `id`
+as a stable tie-breaker. All filters are combined with the server-derived
+authorization predicate: `status`, `priority`, `assignedTo`, `teamId`, `projectId`,
+`createdBy`, `createdFrom`, and `createdTo`. Reversed creation-time ranges and
+invalid query values return 400 Problem Details. Pages return `content`, `page`,
+`size` (the effective capped size), `totalElements`, `totalPages`, and `hasNext`.
+Negative pages, nonpositive sizes and offsets above the JPA integer limit are
+rejected. Creation timestamps use inclusive ISO-8601 instant bounds. Priority
+sorting follows stored string order, not business urgency. `createdBy` is the
+authenticated creator UUID for new tasks and may be null for legacy rows.
+
+Example: `GET /api/v1/tasks?status=COMPLETED&page=0&size=20&sortBy=CREATED_AT&direction=DESC`.
 
 ```json
 {

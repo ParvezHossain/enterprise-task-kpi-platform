@@ -1028,13 +1028,13 @@ Employees must never see other employees' tasks through an unauthorized endpoint
 
 ### Acceptance Criteria
 
-- [ ] Pagination works.
-- [ ] Page size is capped server-side.
-- [ ] Sorting works.
-- [ ] All specified filters work.
-- [ ] Employee visibility is restricted.
-- [ ] Integration tests verify role-scoped access.
-- [ ] Unbounded queries are impossible.
+- [x] Pagination works.
+- [x] Page size is capped server-side.
+- [x] Sorting works.
+- [x] All specified filters work.
+- [x] Employee visibility is restricted.
+- [x] Integration tests verify role-scoped access.
+- [x] Unbounded queries are impossible.
 
 ---
 

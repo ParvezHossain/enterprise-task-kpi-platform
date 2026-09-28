@@ -56,6 +56,14 @@ The JWT decoder downloads signing keys from `TASK_AUTH_JWK_SET_URI`, validates
 `TASK_JWT_AUDIENCE`. The Auth Server's Task-scoped access tokens use audience
 `task-management`.
 
+Task query pagination defaults to 20 rows and caps requests at 100 rows. Set
+`TASK_MAX_PAGE_SIZE` to choose a different positive maximum; values requested by
+clients are always capped server-side, including the default size when the configured
+maximum is below 20. `ResourceServerIT` sets the maximum to two and tests role-scoped
+lists, each filter, sorting, detail/history visibility, invalid parameters and page
+offset overflow using generated JWTs and disposable PostgreSQL. No additional
+environment variables or profiles are required for verification.
+
 `mvn -f enterprise-platform/task-management/pom.xml clean verify` runs the
 PostgreSQL-backed acceptance test. Docker is required; it checks anonymous 401,
 valid RSA/JWKS authentication, wrong issuer/audience, and expired-token rejection.

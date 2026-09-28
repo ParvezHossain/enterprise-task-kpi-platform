@@ -377,3 +377,14 @@ API on 2026-09-11: [checkout 7.0.1](https://github.com/actions/checkout/releases
 and [download-artifact 8.0.1](https://github.com/actions/download-artifact/releases/tag/v8.0.1).
 Use current GitHub-hosted runners for these action runtimes; self-hosted runners
 and GitHub Enterprise Server are outside this workflow's tested scope.
+
+## Task queries (TICKET-0208)
+
+Task query services compose Spring Data Specifications with server-derived
+visibility predicates. A narrow repository fragment exposes only paged searches,
+using JPA offset/limit and a matching count query; it avoids exposing an unpaged
+specification search API. DTO mapping happens in a read-only service transaction.
+Task pages use an allowlisted sort and UUID tie-breaker; audit pages use event time
+and UUID. Creator identity is stored by additive Flyway V3; legacy creators remain
+unknown. No dependencies or stack versions change. See
+[ADR 0017](decisions/0017-task-query-boundaries.md).

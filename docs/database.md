@@ -45,6 +45,12 @@ role has `SELECT` only; leadership changes are provisioned by the migration or
 operator role so application code cannot grant itself team authority. The reverse
 `user_id` index supports loading the authenticated Team Leader's managed team IDs.
 
+TICKET-0208 adds nullable `tasks.created_by` in `V3__task_creator.sql`. It stores
+the Auth Server subject UUID without a cross-database FK. The `idx_tasks_created_by`
+index supports creator filtering while query results remain bounded and role-scoped.
+Existing rows retain null creators because historical creator identity cannot be
+reliably reconstructed; newly created tasks always record the authenticated subject.
+
 Index rationale:
 
 | Index | Rationale |
@@ -55,6 +61,7 @@ Index rationale:
 | `idx_tasks_created_at` | Supports chronological task lists and bounded time-window reporting. |
 | `idx_tasks_due_date` | Supports due/overdue filtering and date-window reporting. |
 | `idx_tasks_project_id` | Supports project-scoped task lists. |
+| `idx_tasks_created_by` | Supports the explicit creator filter without an unbounded scan. |
 | `idx_team_memberships_user_id` | Finds all teams for a user; the `(team_id, user_id)` primary key serves team membership lookups and assignment references. |
 | `idx_team_leaderships_user_id` | Loads all teams managed by the authenticated Team Leader; the composite primary key supports team/user checks. |
 | `idx_task_audit_log_task_occurred_at` | Reads one task's audit history in event-time order without scanning unrelated tasks. |

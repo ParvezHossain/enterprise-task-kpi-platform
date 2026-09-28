@@ -240,3 +240,13 @@ are cleared even after failure. No production signing keys, database credentials
 or deployment secrets are needed; tests generate disposable material. Action
 revisions are pinned and checked weekly by Dependabot. Protect the default branch
 with the verification/container checks described in [development](development.md#github-actions-ci-and-container-delivery).
+
+## Task queries (TICKET-0208)
+
+All-task queries require Admin or Project Manager. Team queries require an explicit
+`teamId`; Team Leaders may select only a team from their server-loaded managed-team
+set. Employees cannot use either broader route. My-task queries always AND the
+authenticated subject with client filters in SQL, so an `assignedTo` parameter
+cannot widen visibility. Detail and history reads use the same role/team/assignee
+policy, including employee 404 concealment. New tasks derive `createdBy` from the
+authenticated UUID subject; it is not accepted from the creation request.
