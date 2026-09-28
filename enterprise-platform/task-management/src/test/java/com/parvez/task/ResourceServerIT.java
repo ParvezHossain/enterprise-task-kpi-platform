@@ -17,6 +17,11 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -207,13 +212,89 @@ class ResourceServerIT {
         }
 
         @Test
+        void teamLeaderCanApproveTaskInManagedTeam() throws Exception {
+        TaskWorkflow workflow = createDraftTask();
+
+        HttpResponse<String> response = approve(workflow);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"status\":\"APPROVED\"", "\"version\":1");
+        }
+
+        @Test
+        void teamLeaderCannotApproveTaskOutsideManagedTeam() throws Exception {
+        TaskWorkflow workflow = createDraftTask();
+        String unrelatedLeaderToken = token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+                    List.of("TEAM_LEADER"), UUID.randomUUID().toString());
+
+        HttpResponse<String> response = post(unrelatedLeaderToken,
+            "/api/v1/tasks/" + workflow.taskId() + "/approve", "{\"version\":0}");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertProblemDetail(response, "Forbidden", "/api/v1/tasks/" + workflow.taskId() + "/approve");
+        }
+
+        @Test
+        void assignmentRequiresTeamMembershipAndApprovedUnassignedTask() throws Exception {
+        TaskWorkflow workflow = createDraftTask();
+        String leaderToken = leaderToken(workflow);
+        HttpResponse<String> beforeApproval = post(leaderToken,
+            "/api/v1/tasks/" + workflow.taskId() + "/assign",
+            assignmentRequest(workflow.employeeOneId(), 0));
+        assertThat(beforeApproval.statusCode()).isEqualTo(409);
+
+        HttpResponse<String> approved = post(leaderToken,
+            "/api/v1/tasks/" + workflow.taskId() + "/approve", "{\"version\":0}");
+        assertThat(approved.statusCode()).isEqualTo(200);
+
+        HttpResponse<String> notMember = post(leaderToken,
+            "/api/v1/tasks/" + workflow.taskId() + "/assign",
+            assignmentRequest(UUID.randomUUID(), 1));
+        assertThat(notMember.statusCode()).isEqualTo(400);
+        assertProblemDetail(notMember, "Invalid task reference", "/api/v1/tasks/" + workflow.taskId() + "/assign");
+
+        HttpResponse<String> assigned = post(leaderToken,
+            "/api/v1/tasks/" + workflow.taskId() + "/assign",
+            assignmentRequest(workflow.employeeOneId(), 1));
+        assertThat(assigned.statusCode()).isEqualTo(200);
+        assertThat(assigned.body()).contains(workflow.employeeOneId().toString(), "\"version\":2");
+        }
+
+        @Test
+        void concurrentAssignmentsAllowOneWinnerAndRejectTheStaleVersion() throws Exception {
+        TaskWorkflow workflow = createDraftTask();
+        String leaderToken = leaderToken(workflow);
+        assertThat(approve(workflow).statusCode()).isEqualTo(200);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<HttpResponse<String>> first = executor.submit(() -> assignAfterBarrier(
+                workflow, workflow.employeeOneId(), leaderToken, ready, start));
+            Future<HttpResponse<String>> second = executor.submit(() -> assignAfterBarrier(
+                workflow, workflow.employeeTwoId(), leaderToken, ready, start));
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            List<Integer> statuses = List.of(first.get(10, TimeUnit.SECONDS).statusCode(),
+                second.get(10, TimeUnit.SECONDS).statusCode());
+
+            assertThat(statuses).containsExactlyInAnyOrder(200, 409);
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+        }
+
+        @Test
         void migrationCreatesRequiredTaskIndexesAndForeignKeys() {
         var taskIndexes = jdbcTemplate.queryForList(
             "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'tasks'",
             String.class);
             var schemaIndexes = jdbcTemplate.queryForList(
                 "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() "
-                    + "AND tablename IN ('team_memberships', 'task_audit_log')",
+                    + "AND tablename IN ('team_memberships', 'team_leaderships', 'task_audit_log')",
                 String.class);
             var schemaForeignKeys = jdbcTemplate.queryForList(
             "SELECT conname FROM pg_constraint WHERE connamespace = current_schema()::regnamespace AND contype = 'f'",
@@ -222,9 +303,10 @@ class ResourceServerIT {
         assertThat(taskIndexes).contains(
             "idx_tasks_assigned_to", "idx_tasks_team_id", "idx_tasks_status",
             "idx_tasks_created_at", "idx_tasks_due_date", "idx_tasks_project_id");
-        assertThat(schemaIndexes).contains("idx_team_memberships_user_id", "idx_task_audit_log_task_occurred_at");
+        assertThat(schemaIndexes).contains("idx_team_memberships_user_id", "idx_team_leaderships_user_id",
+            "idx_task_audit_log_task_occurred_at");
         assertThat(schemaForeignKeys).contains(
-            "fk_team_memberships_team", "fk_projects_team", "fk_tasks_team",
+            "fk_team_memberships_team", "fk_team_leaderships_membership", "fk_projects_team", "fk_tasks_team",
             "fk_tasks_project_team", "fk_tasks_assignee_team", "fk_task_audit_log_task");
         }
 
@@ -279,12 +361,63 @@ class ResourceServerIT {
     }
 
     private HttpResponse<String> post(String token, String body) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/tasks"))
+        return post(token, "/api/v1/tasks", body);
+    }
+
+    private HttpResponse<String> post(String token, String path, String body) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private TaskWorkflow createDraftTask() throws Exception {
+        UUID teamId = createTeam();
+        UUID projectId = UUID.randomUUID();
+        UUID leaderId = UUID.randomUUID();
+        UUID employeeOneId = UUID.randomUUID();
+        UUID employeeTwoId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?)",
+                projectId, teamId, "project-" + projectId);
+        jdbcTemplate.update("INSERT INTO team_memberships (team_id, user_id) VALUES (?, ?), (?, ?), (?, ?)",
+                teamId, leaderId, teamId, employeeOneId, teamId, employeeTwoId);
+        jdbcTemplate.update("INSERT INTO team_leaderships (team_id, user_id) VALUES (?, ?)", teamId, leaderId);
+
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+                List.of("PROJECT_MANAGER")), taskRequest("Workflow task", "HIGH", projectId, teamId));
+        assertThat(response.statusCode()).isEqualTo(201);
+        String location = response.headers().firstValue("location").orElseThrow();
+        UUID taskId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+        return new TaskWorkflow(taskId, teamId, leaderId, employeeOneId, employeeTwoId);
+    }
+
+    private HttpResponse<String> approve(TaskWorkflow workflow) throws Exception {
+        return post(leaderToken(workflow), "/api/v1/tasks/" + workflow.taskId() + "/approve",
+                "{\"version\":0}");
+    }
+
+    private String leaderToken(TaskWorkflow workflow) {
+        return token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("TEAM_LEADER"), workflow.leaderId().toString());
+    }
+
+    private HttpResponse<String> assignAfterBarrier(TaskWorkflow workflow, UUID employeeId, String leaderToken,
+            CountDownLatch ready, CountDownLatch start) throws Exception {
+        ready.countDown();
+        if (!start.await(5, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Concurrent assignment start was not released");
+        }
+        return post(leaderToken, "/api/v1/tasks/" + workflow.taskId() + "/assign",
+                assignmentRequest(employeeId, 1));
+    }
+
+    private String assignmentRequest(UUID employeeId, long version) {
+        return "{\"employeeId\":\"" + employeeId + "\",\"version\":" + version + "}";
+    }
+
+    private record TaskWorkflow(UUID taskId, UUID teamId, UUID leaderId, UUID employeeOneId, UUID employeeTwoId) {
     }
 
     private UUID createProject() {
@@ -308,10 +441,14 @@ class ResourceServerIT {
     }
 
     private void assertProblemDetail(HttpResponse<String> response, String title) {
+        assertProblemDetail(response, title, "/api/v1/tasks");
+        }
+
+        private void assertProblemDetail(HttpResponse<String> response, String title, String instance) {
         assertThat(response.headers().firstValue("content-type").orElseThrow())
                 .contains("application/problem+json");
         assertThat(response.body()).contains("\"type\"", "\"title\":\"" + title + "\"",
-                "\"status\":" + response.statusCode(), "\"instance\":\"/api/v1/tasks\"");
+            "\"status\":" + response.statusCode(), "\"instance\":\"" + instance + "\"");
     }
 
     private String endpoint() {
@@ -341,11 +478,16 @@ class ResourceServerIT {
     }
 
     private static String token(String issuer, String audience, Instant expiresAt, List<String> roles) {
+        return token(issuer, audience, expiresAt, roles, "integration-user");
+        }
+
+        private static String token(String issuer, String audience, Instant expiresAt,
+            List<String> roles, String subject) {
         JwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(privateJwk())));
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
-                .subject("integration-user")
+                .subject(subject)
             .issuedAt(expiresAt.isBefore(now) ? expiresAt.minusSeconds(120) : now.minusSeconds(1))
                 .expiresAt(expiresAt)
                 .audience(List.of(audience))

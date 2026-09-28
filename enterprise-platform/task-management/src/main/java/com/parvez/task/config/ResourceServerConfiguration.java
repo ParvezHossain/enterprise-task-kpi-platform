@@ -1,5 +1,6 @@
 package com.parvez.task.config;
 
+import com.parvez.task.domain.TaskStateMachine;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,11 @@ import org.springframework.context.annotation.Profile;
 @EnableConfigurationProperties(TaskJwtProperties.class)
 @EnableMethodSecurity
 public class ResourceServerConfiguration {
+    @Bean
+    TaskStateMachine taskStateMachine() {
+        return new TaskStateMachine();
+    }
+
     @Bean
         @Profile("!local-stub")
     JwtDecoder jwtDecoder(TaskJwtProperties properties) {

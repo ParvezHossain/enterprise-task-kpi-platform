@@ -925,13 +925,13 @@ On version conflict:
 
 ### Acceptance Criteria
 
-- [ ] Approval obeys authorization policy.
-- [ ] Assignment validates team membership.
-- [ ] Assignment validates Team Leader ownership.
-- [ ] Invalid state transitions are rejected.
-- [ ] Optimistic locking is enabled.
-- [ ] Concurrent assignment produces exactly one success.
-- [ ] Losing request receives `409`.
+- [x] Approval obeys authorization policy.
+- [x] Assignment validates team membership.
+- [x] Assignment validates Team Leader ownership.
+- [x] Invalid state transitions are rejected.
+- [x] Optimistic locking is enabled.
+- [x] Concurrent assignment produces exactly one success.
+- [x] Losing request receives `409`.
 
 ---
 

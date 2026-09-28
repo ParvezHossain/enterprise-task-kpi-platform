@@ -63,6 +63,8 @@ included only with the email scope, without an `email_verified` assertion.
 | `GET /api/v1/whoami` | Requires a valid Auth Server access JWT with the configured issuer, unexpired timestamps, and `task-management` audience; returns `{"subject":"<JWT sub>"}`. |
 | `GET /actuator/health`, `GET /actuator/info` | Public service status endpoints. |
 | `POST /api/v1/tasks` | Admin and Project Manager only. Creates a draft task after validating its project/team relationship; returns `201` with a task response DTO. |
+| `POST /api/v1/tasks/{id}/approve` | Admin or a Team Leader managing the task's team; requires `{"version":0}` (current expected version); returns the approved task DTO. |
+| `POST /api/v1/tasks/{id}/assign` | Admin or a Team Leader managing the task's team; requires `employeeId` and current `version`; assignee must be a member of the task team. |
 
 OpenAPI JSON/UI endpoints are authenticated. This bootstrap endpoint verifies
 resource-server identity propagation; task domain endpoints are introduced by
@@ -74,6 +76,14 @@ Task creation accepts `title` (required, max 200), optional `description` (max
 to the selected team. Validation, unsupported priority values, or an invalid
 project/team pair return RFC 9457 Problem Details with status `400`; an
 authenticated Employee receives `403`.
+
+Approval requires the task's current version in its JSON body. Assignment requires
+`{"employeeId":"<UUID>","version":<current version>}` and is valid only for an
+unassigned `APPROVED` task. Both operations return `409` Problem Details for stale
+versions or invalid lifecycle state. A Team Leader must have a provisioned
+leadership row for the task's team. Task runtime lookups use team memberships and
+leaderships in `task_db`; Auth Server identities remain UUID subjects without
+cross-database foreign keys.
 
 ```json
 {

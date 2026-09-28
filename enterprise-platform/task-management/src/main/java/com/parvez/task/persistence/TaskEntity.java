@@ -84,6 +84,16 @@ public class TaskEntity {
         return task;
     }
 
+    public void updateStatus(TaskStatus status, Instant updatedAt) {
+        this.status = status;
+        this.updatedAt = updatedAt;
+    }
+
+    public void assignTo(UUID assignedTo, Instant updatedAt) {
+        this.assignedTo = assignedTo;
+        this.updatedAt = updatedAt;
+    }
+
     public UUID getId() {
         return id;
     }

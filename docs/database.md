@@ -39,6 +39,12 @@ time. The runtime role receives read/insert access only on the audit table; task
 team, membership, and project tables receive runtime DML. Flyway uses its separate
 migration credential and `${runtimeRole}` is populated from `TASK_DB_USERNAME`.
 
+TICKET-0206 adds `team_leaderships` in `V2__team_leadership.sql`. Each leadership
+references an existing `(team_id, user_id)` membership. The application runtime
+role has `SELECT` only; leadership changes are provisioned by the migration or
+operator role so application code cannot grant itself team authority. The reverse
+`user_id` index supports loading the authenticated Team Leader's managed team IDs.
+
 Index rationale:
 
 | Index | Rationale |
@@ -50,6 +56,7 @@ Index rationale:
 | `idx_tasks_due_date` | Supports due/overdue filtering and date-window reporting. |
 | `idx_tasks_project_id` | Supports project-scoped task lists. |
 | `idx_team_memberships_user_id` | Finds all teams for a user; the `(team_id, user_id)` primary key serves team membership lookups and assignment references. |
+| `idx_team_leaderships_user_id` | Loads all teams managed by the authenticated Team Leader; the composite primary key supports team/user checks. |
 | `idx_task_audit_log_task_occurred_at` | Reads one task's audit history in event-time order without scanning unrelated tasks. |
 
 The unique `(team_id, id)` project key supports the task's team/project
