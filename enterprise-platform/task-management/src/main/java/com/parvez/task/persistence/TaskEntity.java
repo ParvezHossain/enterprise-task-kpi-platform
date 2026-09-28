@@ -1,5 +1,6 @@
 package com.parvez.task.persistence;
 
+import com.parvez.task.domain.TaskStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -8,6 +9,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
@@ -24,8 +27,9 @@ public class TaskEntity {
     @Column(columnDefinition = "text")
     private String description;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private String status;
+    private TaskStatus status;
 
     @Column(nullable = false, length = 16)
     private String priority;

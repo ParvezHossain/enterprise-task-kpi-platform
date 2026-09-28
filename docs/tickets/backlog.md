@@ -814,9 +814,9 @@ must fail.
 
 ### Acceptance Criteria
 
-- [ ] Every valid transition has a unit test.
-- [ ] Every invalid transition is rejected.
-- [ ] State transition logic is not implemented in controllers.
+- [x] Every valid transition has a unit test.
+- [x] Every invalid transition is rejected.
+- [x] State transition logic is not implemented in controllers.
 
 ---
 
