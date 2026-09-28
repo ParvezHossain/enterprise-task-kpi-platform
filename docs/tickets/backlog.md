@@ -772,10 +772,10 @@ docs/database.md
 
 ### Acceptance Criteria
 
-- [ ] Flyway migration succeeds.
-- [ ] Hibernate schema validation succeeds.
-- [ ] Required indexes exist.
-- [ ] Required foreign keys exist.
+- [x] Flyway migration succeeds.
+- [x] Hibernate schema validation succeeds.
+- [x] Required indexes exist.
+- [x] Required foreign keys exist.
 
 ---
 

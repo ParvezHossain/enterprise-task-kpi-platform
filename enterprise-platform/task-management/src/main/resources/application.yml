@@ -18,6 +18,8 @@ spring:
     password: ${TASK_DB_MIGRATION_PASSWORD}
     clean-disabled: true
     locations: classpath:db/migration
+    placeholders:
+      runtimeRole: ${TASK_DB_USERNAME}
 task:
   security:
     jwt:

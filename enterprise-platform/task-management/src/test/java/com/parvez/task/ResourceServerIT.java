@@ -1,6 +1,7 @@
 package com.parvez.task;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -15,6 +16,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -26,6 +28,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -53,6 +58,9 @@ class ResourceServerIT {
     @LocalServerPort
     private int port;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @AfterAll
     static void stopJwkServer() {
         if (jwkServer != null) {
@@ -67,6 +75,7 @@ class ResourceServerIT {
         properties.add("spring.datasource.password", POSTGRES::getPassword);
         properties.add("spring.flyway.user", POSTGRES::getUsername);
         properties.add("spring.flyway.password", POSTGRES::getPassword);
+        properties.add("spring.flyway.placeholders.runtimeRole", POSTGRES::getUsername);
         properties.add("task.security.jwt.issuer", () -> ISSUER);
         properties.add("task.security.jwt.jwk-set-uri", () -> JWK_SET_URI);
     }
@@ -121,6 +130,70 @@ class ResourceServerIT {
 
         assertThat(response.statusCode()).isEqualTo(401);
     }
+
+        @Test
+        void migrationCreatesRequiredTaskIndexesAndForeignKeys() {
+        var taskIndexes = jdbcTemplate.queryForList(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'tasks'",
+            String.class);
+            var schemaIndexes = jdbcTemplate.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() "
+                    + "AND tablename IN ('team_memberships', 'task_audit_log')",
+                String.class);
+            var schemaForeignKeys = jdbcTemplate.queryForList(
+            "SELECT conname FROM pg_constraint WHERE connamespace = current_schema()::regnamespace AND contype = 'f'",
+            String.class);
+
+        assertThat(taskIndexes).contains(
+            "idx_tasks_assigned_to", "idx_tasks_team_id", "idx_tasks_status",
+            "idx_tasks_created_at", "idx_tasks_due_date", "idx_tasks_project_id");
+        assertThat(schemaIndexes).contains("idx_team_memberships_user_id", "idx_task_audit_log_task_occurred_at");
+        assertThat(schemaForeignKeys).contains(
+            "fk_team_memberships_team", "fk_projects_team", "fk_tasks_team",
+            "fk_tasks_project_team", "fk_tasks_assignee_team", "fk_task_audit_log_task");
+        }
+
+        @Test
+        void rejectsTaskAssignedToUserOutsideItsTeam() {
+        UUID taskTeamId = UUID.randomUUID();
+        UUID otherTeamId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        insertTeam(taskTeamId);
+        insertTeam(otherTeamId);
+        jdbcTemplate.update("INSERT INTO team_memberships (team_id, user_id) VALUES (?, ?)", otherTeamId, userId);
+        jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?)",
+            projectId, taskTeamId, "task-team-project");
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "INSERT INTO tasks (id, title, status, priority, assigned_to, team_id, project_id) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)", UUID.randomUUID(), "task", "DRAFT", "MEDIUM",
+            userId, taskTeamId, projectId))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        }
+
+        @Test
+        void rejectsProjectOutsideTaskTeam() {
+        UUID taskTeamId = UUID.randomUUID();
+        UUID otherTeamId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        insertTeam(taskTeamId);
+        insertTeam(otherTeamId);
+        jdbcTemplate.update("INSERT INTO team_memberships (team_id, user_id) VALUES (?, ?)", taskTeamId, userId);
+        jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?)",
+            projectId, otherTeamId, "other-team-project");
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "INSERT INTO tasks (id, title, status, priority, assigned_to, team_id, project_id) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?)", UUID.randomUUID(), "task", "DRAFT", "MEDIUM",
+            userId, taskTeamId, projectId))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        }
+
+        private void insertTeam(UUID teamId) {
+        jdbcTemplate.update("INSERT INTO teams (id, name) VALUES (?, ?)", teamId, "team-" + teamId);
+        }
 
     private HttpResponse<String> get(String token) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(endpoint())).GET();

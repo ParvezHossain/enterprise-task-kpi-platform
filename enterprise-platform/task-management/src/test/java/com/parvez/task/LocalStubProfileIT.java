@@ -37,6 +37,7 @@ class LocalStubProfileIT {
         properties.add("spring.datasource.password", POSTGRES::getPassword);
         properties.add("spring.flyway.user", POSTGRES::getUsername);
         properties.add("spring.flyway.password", POSTGRES::getPassword);
+        properties.add("spring.flyway.placeholders.runtimeRole", POSTGRES::getUsername);
     }
 
     @Test
