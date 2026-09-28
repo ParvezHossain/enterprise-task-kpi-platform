@@ -842,10 +842,10 @@ Implement the authorization matrix defined in README section 20.
 
 ### Acceptance Criteria
 
-- [ ] Dedicated policy component exists.
-- [ ] Every role/action combination is tested.
-- [ ] Tests cover every allow/deny cell in the authorization matrix.
-- [ ] Controllers do not contain duplicated authorization logic.
+- [x] Dedicated policy component exists.
+- [x] Every role/action combination is tested.
+- [x] Tests cover every allow/deny cell in the authorization matrix.
+- [x] Controllers do not contain duplicated authorization logic.
 
 ---
 

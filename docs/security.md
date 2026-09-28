@@ -97,6 +97,20 @@ routes, including OpenAPI documentation, require authentication. JWT scopes and
 application authorization policies will be enforced by the task APIs as they are
 introduced; authentication alone does not authorize task ownership or tenant access.
 
+## Task authorization policy (TICKET-0204)
+
+`TaskAuthorizationPolicy` is the single role/action decision point. Its role matrix
+is documented in [README section 20](../README.md#20-task-authorization-matrix).
+The JWT `roles` claim is mapped to known Task roles; unknown roles fail closed.
+The application supplies managed-team IDs from Task-owned membership data when
+building the actor context. Team Leader actions are restricted to those teams,
+employee start/completion requires the task assignee to match the JWT subject,
+and transitions require `APPROVED` to start, `IN_PROGRESS` to complete, and
+`COMPLETED` to close. Read-own and read-team list operations must apply their
+subject/team predicates to the database query as well as pass policy checks.
+Enable method security and have endpoint/service annotations delegate to this
+policy rather than embedding role expressions in controllers.
+
 ### Local parallel-development stub (TICKET-0201a)
 
 The optional `local-stub` profile replaces only the JWT decoder with an isolated
