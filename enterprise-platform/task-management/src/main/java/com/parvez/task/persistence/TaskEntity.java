@@ -1,6 +1,7 @@
 package com.parvez.task.persistence;
 
 import com.parvez.task.domain.TaskStatus;
+import com.parvez.task.domain.TaskPriority;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -66,5 +67,68 @@ public class TaskEntity {
     private long version;
 
     protected TaskEntity() {
+    }
+
+    public static TaskEntity draft(String title, String description, TaskPriority priority,
+            UUID teamId, UUID projectId, LocalDate dueDate) {
+        TaskEntity task = new TaskEntity();
+        task.title = title;
+        task.description = description;
+        task.status = TaskStatus.DRAFT;
+        task.priority = priority.name();
+        task.teamId = teamId;
+        task.projectId = projectId;
+        task.dueDate = dueDate;
+        task.createdAt = Instant.now();
+        task.updatedAt = task.createdAt;
+        return task;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public TaskStatus getStatus() {
+        return status;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public UUID getAssignedTo() {
+        return assignedTo;
+    }
+
+    public UUID getTeamId() {
+        return teamId;
+    }
+
+    public UUID getProjectId() {
+        return projectId;
+    }
+
+    public LocalDate getDueDate() {
+        return dueDate;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 }

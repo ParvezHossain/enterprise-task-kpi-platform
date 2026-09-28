@@ -881,11 +881,11 @@ Use Jakarta Bean Validation.
 
 ### Acceptance Criteria
 
-- [ ] PM can create a valid task → `201`.
-- [ ] Employee receives `403`.
-- [ ] Invalid payload returns `400`.
-- [ ] Invalid payload uses Problem Details.
-- [ ] JPA entities are never exposed.
+- [x] PM can create a valid task → `201`.
+- [x] Employee receives `403`.
+- [x] Invalid payload returns `400`.
+- [x] Invalid payload uses Problem Details.
+- [x] JPA entities are never exposed.
 
 ---
 

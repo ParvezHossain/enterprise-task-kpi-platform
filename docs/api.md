@@ -62,10 +62,29 @@ included only with the email scope, without an `email_verified` assertion.
 | --- | --- |
 | `GET /api/v1/whoami` | Requires a valid Auth Server access JWT with the configured issuer, unexpired timestamps, and `task-management` audience; returns `{"subject":"<JWT sub>"}`. |
 | `GET /actuator/health`, `GET /actuator/info` | Public service status endpoints. |
+| `POST /api/v1/tasks` | Admin and Project Manager only. Creates a draft task after validating its project/team relationship; returns `201` with a task response DTO. |
 
 OpenAPI JSON/UI endpoints are authenticated. This bootstrap endpoint verifies
 resource-server identity propagation; task domain endpoints are introduced by
 subsequent tickets.
+
+Task creation accepts `title` (required, max 200), optional `description` (max
+10,000), `priority` (`LOW`, `MEDIUM`, `HIGH`, or `URGENT`), `projectId`,
+`teamId`, and optional `dueDate` (`YYYY-MM-DD`). The selected project must belong
+to the selected team. Validation, unsupported priority values, or an invalid
+project/team pair return RFC 9457 Problem Details with status `400`; an
+authenticated Employee receives `403`.
+
+```json
+{
+	"title": "Review API contract",
+	"description": "Check the endpoint contract with the team.",
+	"priority": "HIGH",
+	"projectId": "d90b5d7a-77c1-4ee3-81c6-e06a9f45138a",
+	"teamId": "9a9e140d-31e0-4cf5-8460-fdd46f6852f0",
+	"dueDate": "2030-04-05"
+}
+```
 
 Codes expire after two minutes and are single-use. Access JWTs live five minutes;
 refresh tokens live eight hours and rotate on use. A rotated token or replayed code

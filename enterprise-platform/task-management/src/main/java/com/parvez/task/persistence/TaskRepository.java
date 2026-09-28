@@ -1,0 +1,8 @@
+package com.parvez.task.persistence;
+
+import java.util.UUID;
+import org.springframework.data.repository.Repository;
+
+public interface TaskRepository extends Repository<TaskEntity, UUID> {
+    TaskEntity save(TaskEntity task);
+}

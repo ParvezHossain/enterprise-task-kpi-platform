@@ -132,6 +132,81 @@ class ResourceServerIT {
     }
 
         @Test
+        void projectManagerCanCreateTaskAndReceivesResponseDto() throws Exception {
+        UUID teamId = createProject();
+        UUID projectId = jdbcTemplate.queryForObject("SELECT id FROM projects WHERE team_id = ?", UUID.class, teamId);
+        String requestBody = taskRequest("Review API", "HIGH", projectId, teamId);
+
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER")), requestBody);
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.headers().firstValue("location").orElseThrow()).contains("/api/v1/tasks/");
+        assertThat(response.body()).contains("\"title\":\"Review API\"", "\"status\":\"DRAFT\"",
+            "\"priority\":\"HIGH\"", "\"version\":0");
+        assertThat(response.body()).doesNotContain("startedAt", "completedAt", "passwordHash");
+        }
+
+        @Test
+        void adminCanCreateTask() throws Exception {
+        UUID teamId = createProject();
+        UUID projectId = jdbcTemplate.queryForObject("SELECT id FROM projects WHERE team_id = ?", UUID.class, teamId);
+
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("ADMIN")), taskRequest("Admin task", "MEDIUM", projectId, teamId));
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        }
+
+        @Test
+        void employeeCannotCreateTask() throws Exception {
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("EMPLOYEE")), taskRequest("Employee task", "LOW", UUID.randomUUID(), UUID.randomUUID()));
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertProblemDetail(response, "Forbidden");
+        }
+
+        @Test
+        void invalidTaskRequestReturnsValidationProblemDetail() throws Exception {
+        String invalidRequest = """
+            {"title":"  ","description":"valid","priority":"HIGH",
+             "projectId":"%s","teamId":"%s"}
+            """.formatted(UUID.randomUUID(), UUID.randomUUID());
+
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER")), invalidRequest);
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertProblemDetail(response, "Invalid request");
+        assertThat(response.body()).contains("\"errors\"", "\"title\"");
+        }
+
+        @Test
+        void invalidPriorityReturnsProblemDetail() throws Exception {
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER")), taskRequest("Task", "INVALID", UUID.randomUUID(), UUID.randomUUID()));
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertProblemDetail(response, "Invalid request");
+        }
+
+        @Test
+        void rejectsProjectFromAnotherTeam() throws Exception {
+        UUID requestedTeamId = createTeam();
+        UUID otherTeamId = createTeam();
+        UUID otherProjectId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?)",
+            otherProjectId, otherTeamId, "other-team-project");
+
+        HttpResponse<String> response = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER")), taskRequest("Task", "HIGH", otherProjectId, requestedTeamId));
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertProblemDetail(response, "Invalid task reference");
+        }
+
+        @Test
         void migrationCreatesRequiredTaskIndexesAndForeignKeys() {
         var taskIndexes = jdbcTemplate.queryForList(
             "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'tasks'",
@@ -203,6 +278,42 @@ class ResourceServerIT {
         return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    private HttpResponse<String> post(String token, String body) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/tasks"))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private UUID createProject() {
+        UUID teamId = createTeam();
+        jdbcTemplate.update("INSERT INTO projects (id, team_id, name) VALUES (?, ?, ?)",
+                UUID.randomUUID(), teamId, "project-" + UUID.randomUUID());
+        return teamId;
+    }
+
+    private UUID createTeam() {
+        UUID teamId = UUID.randomUUID();
+        insertTeam(teamId);
+        return teamId;
+    }
+
+    private String taskRequest(String title, String priority, UUID projectId, UUID teamId) {
+        return """
+                {"title":"%s","description":"A task description","priority":"%s",
+                 "projectId":"%s","teamId":"%s","dueDate":"2030-04-05"}
+                """.formatted(title, priority, projectId, teamId);
+    }
+
+    private void assertProblemDetail(HttpResponse<String> response, String title) {
+        assertThat(response.headers().firstValue("content-type").orElseThrow())
+                .contains("application/problem+json");
+        assertThat(response.body()).contains("\"type\"", "\"title\":\"" + title + "\"",
+                "\"status\":" + response.statusCode(), "\"instance\":\"/api/v1/tasks\"");
+    }
+
     private String endpoint() {
         return "http://127.0.0.1:" + port + "/api/v1/whoami";
     }
@@ -226,6 +337,10 @@ class ResourceServerIT {
     }
 
     private static String token(String issuer, String audience, Instant expiresAt) {
+        return token(issuer, audience, expiresAt, List.of());
+    }
+
+    private static String token(String issuer, String audience, Instant expiresAt, List<String> roles) {
         JwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(privateJwk())));
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
@@ -235,6 +350,7 @@ class ResourceServerIT {
                 .expiresAt(expiresAt)
                 .audience(List.of(audience))
                 .claim("scope", "task.read")
+                .claim("roles", roles)
                 .build();
         return encoder.encode(JwtEncoderParameters.from(
                 JwsHeader.with(SignatureAlgorithm.RS256).keyId("integration-key").build(), claims)).getTokenValue();
