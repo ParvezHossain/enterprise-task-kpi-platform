@@ -65,6 +65,8 @@ included only with the email scope, without an `email_verified` assertion.
 | `POST /api/v1/tasks` | Admin and Project Manager only. Creates a draft task after validating its project/team relationship; returns `201` with a task response DTO. |
 | `POST /api/v1/tasks/{id}/approve` | Admin or a Team Leader managing the task's team; requires `{"version":0}` (current expected version); returns the approved task DTO. |
 | `POST /api/v1/tasks/{id}/assign` | Admin or a Team Leader managing the task's team; requires `employeeId` and current `version`; assignee must be a member of the task team. |
+| `PATCH /api/v1/tasks/{id}/status` | An Employee may start their own assigned task (`APPROVED` → `IN_PROGRESS`) or complete it (`IN_PROGRESS` → `COMPLETED`); requires target `status` and current `version`. |
+| `POST /api/v1/tasks/{id}/close` | Admin or Project Manager may close a completed task; requires current `version`. |
 
 OpenAPI JSON/UI endpoints are authenticated. This bootstrap endpoint verifies
 resource-server identity propagation; task domain endpoints are introduced by
@@ -84,6 +86,10 @@ versions or invalid lifecycle state. A Team Leader must have a provisioned
 leadership row for the task's team. Task runtime lookups use team memberships and
 leaderships in `task_db`; Auth Server identities remain UUID subjects without
 cross-database foreign keys.
+
+Employees receive `404` when they address another employee's task by ID, avoiding
+confirmation that the resource exists. Invalid lifecycle transitions and stale
+versions return `409` Problem Details.
 
 ```json
 {

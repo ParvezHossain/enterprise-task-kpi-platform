@@ -288,6 +288,57 @@ class ResourceServerIT {
         }
 
         @Test
+        void employeeCanStartAndCompleteOwnAssignedTaskAndManagerCanCloseIt() throws Exception {
+        TaskWorkflow workflow = createAssignedTask();
+        String employeeToken = employeeToken(workflow.employeeTwoId());
+
+        HttpResponse<String> started = patch(employeeToken, workflow.taskId(),
+            statusRequest("IN_PROGRESS", 2));
+        assertThat(started.statusCode()).isEqualTo(200);
+        assertThat(started.body()).contains("\"status\":\"IN_PROGRESS\"", "\"version\":3");
+
+        HttpResponse<String> completed = patch(employeeToken, workflow.taskId(),
+            statusRequest("COMPLETED", 3));
+        assertThat(completed.statusCode()).isEqualTo(200);
+        assertThat(completed.body()).contains("\"status\":\"COMPLETED\"", "\"version\":4");
+
+        HttpResponse<String> closed = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+            List.of("PROJECT_MANAGER")), "/api/v1/tasks/" + workflow.taskId() + "/close", "{\"version\":4}");
+        assertThat(closed.statusCode()).isEqualTo(200);
+        assertThat(closed.body()).contains("\"status\":\"CLOSED\"", "\"version\":5");
+        }
+
+        @Test
+        void employeeCannotUpdateAnotherEmployeesTaskById() throws Exception {
+        TaskWorkflow workflow = createAssignedTask();
+        HttpResponse<String> started = patch(employeeToken(workflow.employeeTwoId()), workflow.taskId(),
+            statusRequest("IN_PROGRESS", 2));
+        assertThat(started.statusCode()).isEqualTo(200);
+
+        HttpResponse<String> idorAttempt = patch(employeeToken(workflow.employeeOneId()), workflow.taskId(),
+            statusRequest("COMPLETED", 3));
+
+        assertThat(idorAttempt.statusCode()).isEqualTo(404);
+        assertProblemDetail(idorAttempt, "Task not found", "/api/v1/tasks/" + workflow.taskId() + "/status");
+        }
+
+        @Test
+        void rejectsInvalidAndStaleEmployeeStatusTransitionsWithConflict() throws Exception {
+        TaskWorkflow workflow = createAssignedTask();
+        String employeeToken = employeeToken(workflow.employeeTwoId());
+
+        HttpResponse<String> invalidTransition = patch(employeeToken, workflow.taskId(),
+            statusRequest("COMPLETED", 2));
+        assertThat(invalidTransition.statusCode()).isEqualTo(409);
+        assertProblemDetail(invalidTransition, "Task conflict", "/api/v1/tasks/" + workflow.taskId() + "/status");
+
+        HttpResponse<String> staleVersion = patch(employeeToken, workflow.taskId(),
+            statusRequest("IN_PROGRESS", 1));
+        assertThat(staleVersion.statusCode()).isEqualTo(409);
+        assertProblemDetail(staleVersion, "Task conflict", "/api/v1/tasks/" + workflow.taskId() + "/status");
+        }
+
+        @Test
         void migrationCreatesRequiredTaskIndexesAndForeignKeys() {
         var taskIndexes = jdbcTemplate.queryForList(
             "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = 'tasks'",
@@ -393,6 +444,16 @@ class ResourceServerIT {
         return new TaskWorkflow(taskId, teamId, leaderId, employeeOneId, employeeTwoId);
     }
 
+    private TaskWorkflow createAssignedTask() throws Exception {
+        TaskWorkflow workflow = createDraftTask();
+        assertThat(approve(workflow).statusCode()).isEqualTo(200);
+        HttpResponse<String> assignment = post(leaderToken(workflow),
+                "/api/v1/tasks/" + workflow.taskId() + "/assign",
+                assignmentRequest(workflow.employeeTwoId(), 1));
+        assertThat(assignment.statusCode()).isEqualTo(200);
+        return workflow;
+    }
+
     private HttpResponse<String> approve(TaskWorkflow workflow) throws Exception {
         return post(leaderToken(workflow), "/api/v1/tasks/" + workflow.taskId() + "/approve",
                 "{\"version\":0}");
@@ -415,6 +476,25 @@ class ResourceServerIT {
 
     private String assignmentRequest(UUID employeeId, long version) {
         return "{\"employeeId\":\"" + employeeId + "\",\"version\":" + version + "}";
+    }
+
+    private String statusRequest(String status, long version) {
+        return "{\"status\":\"" + status + "\",\"version\":" + version + "}";
+    }
+
+    private String employeeToken(UUID employeeId) {
+        return token(ISSUER, "task-management", Instant.now().plusSeconds(60),
+                List.of("EMPLOYEE"), employeeId.toString());
+    }
+
+    private HttpResponse<String> patch(String token, UUID taskId, String body) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(
+                        "http://127.0.0.1:" + port + "/api/v1/tasks/" + taskId + "/status"))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private record TaskWorkflow(UUID taskId, UUID teamId, UUID leaderId, UUID employeeOneId, UUID employeeTwoId) {

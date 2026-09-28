@@ -72,6 +72,55 @@ public class TaskCommandService {
         return responseMapper.toResponse(task);
     }
 
+    @Transactional
+    public TaskResponse updateStatus(TaskActor actor, UUID taskId, TaskStatus requestedStatus, long expectedVersion) {
+        TaskEntity task = findTask(taskId);
+        TaskAuthorizationTarget target = target(task);
+        if (authorizationPolicy.shouldConcealEmployeeTask(actor, target)) {
+            throw new TaskNotFoundException(taskId);
+        }
+
+        TaskAction action = switch (requestedStatus) {
+            case IN_PROGRESS -> TaskAction.START_TASK;
+            case COMPLETED -> TaskAction.COMPLETE_TASK;
+            default -> throw new com.parvez.task.domain.InvalidTaskTransitionException(
+                    task.getStatus(), requestedStatus);
+        };
+        if (!authorizationPolicy.canAttempt(actor, action)) {
+            throw new AccessDeniedException("Not permitted to update this task");
+        }
+        verifyVersion(task, expectedVersion);
+        TaskStatus nextStatus = stateMachine.transition(task.getStatus(), requestedStatus);
+        if (!authorizationPolicy.allows(actor, action, target)) {
+            throw new AccessDeniedException("Not permitted to update this task");
+        }
+
+        task.updateStatus(nextStatus, Instant.now());
+        flush(task);
+        return responseMapper.toResponse(task);
+    }
+
+    @Transactional
+    public TaskResponse close(TaskActor actor, UUID taskId, long expectedVersion) {
+        TaskEntity task = findTask(taskId);
+        TaskAuthorizationTarget target = target(task);
+        if (authorizationPolicy.shouldConcealEmployeeTask(actor, target)) {
+            throw new TaskNotFoundException(taskId);
+        }
+        if (!authorizationPolicy.canAttempt(actor, TaskAction.CLOSE_TASK)) {
+            throw new AccessDeniedException("Not permitted to close this task");
+        }
+        verifyVersion(task, expectedVersion);
+        TaskStatus closed = stateMachine.transition(task.getStatus(), TaskStatus.CLOSED);
+        if (!authorizationPolicy.allows(actor, TaskAction.CLOSE_TASK, target)) {
+            throw new AccessDeniedException("Not permitted to close this task");
+        }
+
+        task.updateStatus(closed, Instant.now());
+        flush(task);
+        return responseMapper.toResponse(task);
+    }
+
     private TaskEntity findTask(UUID taskId) {
         return tasks.findById(taskId).orElseThrow(() -> new TaskNotFoundException(taskId));
     }

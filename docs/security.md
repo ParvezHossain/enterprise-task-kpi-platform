@@ -111,6 +111,12 @@ subject/team predicates to the database query as well as pass policy checks.
 Enable method security and have endpoint/service annotations delegate to this
 policy rather than embedding role expressions in controllers.
 
+For Task IDOR protection (TICKET-0207), an Employee requesting another
+Employee's task receives `404 Not Found`, not `403`. This prevents a guessed task
+ID from confirming the resource's existence, while Admin/PM access denials remain
+403. The decision applies to employee-specific task operations; it does not replace
+team/role authorization for broader queries.
+
 ### Local parallel-development stub (TICKET-0201a)
 
 The optional `local-stub` profile replaces only the JWT decoder with an isolated

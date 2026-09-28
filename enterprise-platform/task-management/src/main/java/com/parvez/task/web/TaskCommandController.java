@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,5 +36,18 @@ public class TaskCommandController {
             @Valid @RequestBody TaskAssignmentRequest request) {
         return ResponseEntity.ok(commands.assign(actorProvider.fromJwt(jwt), taskId,
                 request.employeeId(), request.version()));
+    }
+
+    @PatchMapping("/status")
+    ResponseEntity<TaskResponse> updateStatus(@PathVariable UUID taskId, @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody TaskStatusUpdateRequest request) {
+        return ResponseEntity.ok(commands.updateStatus(actorProvider.fromJwt(jwt), taskId,
+                request.status(), request.version()));
+    }
+
+    @PostMapping("/close")
+    ResponseEntity<TaskResponse> close(@PathVariable UUID taskId, @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody TaskVersionRequest request) {
+        return ResponseEntity.ok(commands.close(actorProvider.fromJwt(jwt), taskId, request.version()));
     }
 }

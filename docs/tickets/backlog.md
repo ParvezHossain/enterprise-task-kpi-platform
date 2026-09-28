@@ -978,11 +978,11 @@ Document the security rationale.
 
 ### Acceptance Criteria
 
-- [ ] Employees can update only their own tasks.
-- [ ] Employees cannot update another employee's task.
-- [ ] PM/Admin can close completed tasks.
-- [ ] Invalid transitions fail.
-- [ ] IDOR test passes.
+- [x] Employees can update only their own tasks.
+- [x] Employees cannot update another employee's task.
+- [x] PM/Admin can close completed tasks.
+- [x] Invalid transitions fail.
+- [x] IDOR test passes.
 
 ---
 

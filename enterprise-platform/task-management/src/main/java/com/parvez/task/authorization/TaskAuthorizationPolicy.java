@@ -33,8 +33,7 @@ public final class TaskAuthorizationPolicy {
                     TaskAction.COMPLETE_TASK));
 
     public boolean allows(TaskActor actor, TaskAction action, TaskAuthorizationTarget target) {
-        if (actor == null || action == null
-                || actor.roles().stream().noneMatch(role -> ROLE_ACTIONS.get(role).contains(action))) {
+                if (!canAttempt(actor, action)) {
             return false;
         }
 
@@ -50,6 +49,17 @@ public final class TaskAuthorizationPolicy {
             case CLOSE_TASK -> target != null && target.status() == TaskStatus.COMPLETED;
         };
     }
+
+        public boolean canAttempt(TaskActor actor, TaskAction action) {
+                return actor != null && action != null
+                                && actor.roles().stream().anyMatch(role -> ROLE_ACTIONS.get(role).contains(action));
+        }
+
+        public boolean shouldConcealEmployeeTask(TaskActor actor, TaskAuthorizationTarget target) {
+                return actor != null && actor.roles().contains(TaskRole.EMPLOYEE)
+                                && target != null && (target.assignedTo() == null
+                                || !actor.subject().equals(target.assignedTo().toString()));
+        }
 
     private boolean isAssignedToActor(TaskActor actor, TaskAuthorizationTarget target) {
         return target != null && target.assignedTo() != null
