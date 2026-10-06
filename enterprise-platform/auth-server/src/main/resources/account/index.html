@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your account · Enterprise Platform</title>
+  <link rel="stylesheet" href="/account-assets/account.css">
+  <script src="/account-assets/account.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/account"><span class="brand-icon" aria-hidden="true">P</span>Enterprise Platform<span class="brand-label">Identity</span></a>
+    <nav class="portal-nav" aria-label="Account shortcuts"><a class="help-link" href="#sessions">How sign-in works <span aria-hidden="true">↗</span></a><a class="logout-shortcut" href="#sign-out">Sign-out options <span aria-hidden="true">↪</span></a></nav>
+  </header>
+  <main>
+    <section class="hero" aria-labelledby="page-title">
+      <div><p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>You are signed in</p>
+        <h1 id="page-title">One identity.<br>A clear view of your access.</h1>
+        <p class="intro">Your account, authentication activity and sign-out controls in one place.</p>
+      </div>
+      <div class="identity-card" aria-label="Your identity">
+        <div class="avatar" aria-hidden="true">YOU</div>
+        <p class="small-label">SIGNED-IN ACCOUNT</p>
+        <p id="email" class="identity-email">Loading account…</p>
+        <div id="roles" class="roles" aria-label="Account roles"></div>
+        <details><summary>Account identifier</summary><code id="subject"></code></details>
+      </div>
+    </section>
+    <div id="account-error" class="notice error" role="alert" hidden></div>
+
+    <section aria-labelledby="applications-title">
+      <div class="section-heading"><div><p class="small-label">YOUR WORKSPACES</p><h2 id="applications-title">Continue to an application</h2></div><p class="muted">Each application manages its own session.</p></div>
+      <div class="app-grid">
+        <article class="card app-card"><span class="app-icon" aria-hidden="true">✓</span><h3>Task Management</h3><p>Create, review and complete work with your team.</p><a id="task-link" class="button secondary" hidden>Open Task Management <span aria-hidden="true">↗</span></a></article>
+        <article class="card app-card"><span class="app-icon violet" aria-hidden="true">▥</span><h3>KPI &amp; Performance</h3><p>See completion, timeliness and scoped performance reports.</p><a id="kpi-link" class="button secondary" hidden>Open KPI <span aria-hidden="true">↗</span></a></article>
+      </div>
+    </section>
+
+    <section id="sessions" class="card session-card" aria-labelledby="sessions-title">
+      <p class="small-label">UNDERSTAND YOUR SESSIONS</p><h2 id="sessions-title">Why signing in can feel automatic</h2>
+      <p class="muted">Auth remembers your identity. Task and KPI separately remember access to their own application.</p>
+      <div class="session-map" aria-label="Auth provides single sign-on to two separate application sessions">
+        <div class="session-node auth-node"><span class="node-label">01 · IDENTITY</span><strong>Auth Server</strong><span class="session-state"><span class="status-dot" aria-hidden="true"></span>Signed in in this browser</span></div>
+        <div class="connector" aria-hidden="true"><span>Single sign-on</span><span class="arrow">→</span></div>
+        <div class="application-nodes"><div class="session-node"><span class="node-label">02 · APPLICATION</span><strong>Task session</strong><span>Managed by Task</span></div><div class="session-node"><span class="node-label">03 · APPLICATION</span><strong>KPI session</strong><span>Managed by KPI</span></div></div>
+      </div>
+      <div class="explanation-grid">
+        <div><span class="step-number">1</span><h3>Sign out of an app</h3><p>Its Sign Out button ends that application's session. Your Auth session can remain signed in.</p></div>
+        <div><span class="step-number">2</span><h3>Sign in again</h3><p>If Auth is still signed in, it can let the app establish a new session without another password prompt.</p></div>
+        <div><span class="step-number">3</span><h3>Require a fresh login</h3><p>Sign out of the applications you used, then sign out of Auth below. Your next app sign-in asks for credentials.</p></div>
+      </div>
+      <p class="footnote">This page cannot determine whether Task or KPI is currently signed in. Opening an application shows its own session status.</p>
+    </section>
+
+    <div class="lower-grid">
+      <section class="card activity-card" aria-labelledby="activity-title">
+        <div class="section-heading"><div><p class="small-label">YOUR AUTHENTICATION</p><h2 id="activity-title">Recent activity</h2></div><button id="refresh" class="text-button" type="button" disabled>Refresh</button></div>
+        <p class="muted">Recorded sign-ins and Auth sign-outs for your account only.</p>
+        <div id="activity-status" class="activity-status" role="status">Loading activity…</div>
+        <ol id="activity-list" class="activity-list" aria-label="Authentication events"></ol>
+        <nav class="pagination" aria-label="Activity pages"><button id="previous" class="button small secondary" disabled>Previous</button><span id="page-label" class="muted">Page 1</span><button id="next" class="button small secondary" disabled>Next</button></nav>
+        <p class="footnote">History starts when activity recording is installed. Session expiry, app sign-outs and token refreshes are not listed. Failed sign-ins are recorded only when the submitted email identifies an existing account.</p>
+      </section>
+      <section id="sign-out" class="card logout-card" aria-labelledby="logout-title">
+        <span class="logout-icon" aria-hidden="true">↪</span><p class="small-label">THIS BROWSER</p><h2 id="logout-title">Sign out of Auth</h2>
+        <p>End your identity-provider session so it cannot automatically sign you back into an application.</p>
+        <div class="notice"><strong>Application sessions stay separate</strong><p>This action does not sign you out of Task or KPI, revoke OAuth grants, or sign out other browsers. Sign out within those applications as well.</p></div>
+        <form id="logout-form" action="/logout" method="post"><input id="logout-csrf" type="hidden"><button id="logout-button" class="button primary" disabled>Sign out of Auth <span aria-hidden="true">↪</span></button></form>
+        <p class="footnote">Sign-out uses a protected POST request. It does not disable your account; you can sign in again.</p>
+      </section>
+    </div>
+    <footer>Your credentials and OAuth tokens are never shown on this page.</footer>
+  </main>
+</body>
+</html>

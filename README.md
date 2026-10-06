@@ -7,7 +7,11 @@ use BFF sessions, shared Tailwind styles and Chart.js.
 Start with [complete local setup](docs/development.md#complete-local-platform):
 verify the modules, generate private development credentials, run Compose with
 health checks, and execute the explicit seed command. Task UI runs on
-http://127.0.0.1:8080; KPI UI on http://127.0.0.1:8081.
+http://127.0.0.1:8080; KPI UI on http://127.0.0.1:8081. The personal Auth
+account portal is http://127.0.0.1:9000/account and explains sign-out/session
+boundaries with a visual guide and real authentication activity.
+Its [custom sign-in page](docs/development.md#custom-auth-login-page) is
+http://127.0.0.1:9000/login and supports desktop/mobile browsers.
 
 - [Directory structure and build commands](enterprise-platform/README.md)
 - [Repository contract](AGENTS.md)

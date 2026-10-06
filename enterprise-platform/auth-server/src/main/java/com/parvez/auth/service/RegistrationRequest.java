@@ -8,7 +8,8 @@ import jakarta.validation.constraints.Size;
 
 public record RegistrationRequest(
         @NotBlank @Email @Size(max = 254) String email,
-        @NotBlank @Size(min = 12, max = 128) String password) {
+        @NotBlank @Size(min = 12, max = 128) String password
+) {
     public RegistrationRequest {
         email = email == null ? null : email.strip().toLowerCase(Locale.ROOT);
     }

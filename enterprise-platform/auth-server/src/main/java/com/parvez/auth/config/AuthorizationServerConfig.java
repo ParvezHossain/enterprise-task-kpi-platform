@@ -33,12 +33,20 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 public class AuthorizationServerConfig {
     @Bean
     @Order(1)
-    SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
+            com.parvez.auth.service.AuthActivityService activities) throws Exception {
         http.oauth2AuthorizationServer(server -> {
             http.securityMatcher(server.getEndpointsMatcher());
-            server.oidc(Customizer.withDefaults());
+            server.oidc(oidc -> oidc.logoutEndpoint(logout -> logout.logoutResponseHandler((request, response, authentication) -> {
+                var oidcLogout = (org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcLogoutAuthenticationToken) authentication;
+                new org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler()
+                        .onAuthenticationSuccess(request, response, authentication);
+                if (oidcLogout.isPrincipalAuthenticated())
+                    activities.record((org.springframework.security.core.Authentication) oidcLogout.getPrincipal(), "AUTH_LOGOUT");
+            })));
         });
-        return http.headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"))).authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+        return http.headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'")))
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .oauth2ResourceServer(resource -> resource.jwt(Customizer.withDefaults()))
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"), new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))

@@ -262,6 +262,22 @@ class AuthorizationCodeFlowIT {
     }
 
     @Test
+    void oidcLogoutRecordsTheHumanSessionWithoutChangingProtocolRedirects() throws Exception {
+        var browser = browser();
+        String password = "Oidc-logout-" + UUID.randomUUID();
+        var user = users.register(new RegistrationRequest(UUID.randomUUID() + "@example.org", password));
+        login(browser, user.email(), password);
+        String verifier = verifier();
+        String state = UUID.randomUUID().toString();
+        var tokens = json.readTree(exchange(browser, "kpi-ui",
+                code(get(browser, authorization("kpi-ui", verifier, state, "logout-activity")), state, "kpi-ui"), verifier).body());
+        var logout = get(browser, "/connect/logout?id_token_hint=" + URLEncoder.encode(tokens.path("id_token").asText(), StandardCharsets.UTF_8));
+        assertThat(logout.statusCode()).isEqualTo(302);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM authentication_activity WHERE user_id=? AND event='AUTH_LOGOUT'", Long.class, user.id())).isEqualTo(1);
+        assertThat(get(browser, "/account").statusCode()).isEqualTo(302);
+    }
+
+    @Test
     void loginRejectsMissingCsrfAndUsesTheSameFailureForInvalidOrDisabledUsers(CapturedOutput output) throws Exception {
         String email = UUID.randomUUID() + "@example.org";
         String password = "Login-canary-" + UUID.randomUUID();

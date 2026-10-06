@@ -283,7 +283,7 @@ passed. At that ticket, Task and KPI still contained skeletons; both now have ap
 
 No new dependency, environment variable, profile, migration, or setup service is
 required. Follow the existing OIDC local walkthrough. Standalone login now leads
-to `/account`; its sign-out link opens the generated logout confirmation form.
+to `/account`; its sign-out form and the custom `/logout` confirmation use CSRF.
 First-party consent auto-approval and the third-party consent requirement are
 explained in [security](security.md#login-logout-and-consent-policy-ticket-0106).
 
@@ -321,8 +321,9 @@ verification below now covers both applications.
 ## Problem Details verification (TICKET-0107)
 
 No new dependency, migration, profile, service, or environment variable is needed.
-Invalid login now returns 401 `application/problem+json`, including browser form
-submissions. The other error contracts are in [API documentation](api.md#error-responses-ticket-0107).
+Invalid login returns 401 `application/problem+json` to API/non-HTML callers.
+The custom sign-in page now redirects HTML credential failures to `/login?error`.
+The other error contracts are in [API documentation](api.md#error-responses-ticket-0107).
 Run from the repository root with Java 25, Maven and Docker available:
 
 ```sh
@@ -593,3 +594,79 @@ Boot's web observations. The Prometheus client reserves _created, so tasks.creat
 exports as tasks_total; the other counters export tasks_approved_total,
 tasks_assigned_total, tasks_completed_total and tasks_closed_total.
 KPI exposes kpi_sync_success_total, kpi_sync_failure_total and kpi_sync_age_seconds.
+
+## Auth account portal
+
+After the normal full-platform setup, open http://127.0.0.1:9000/ (redirects to
+/account) or use Task/KPI's normal sign-in. The account portal shows current
+identity, a session diagram, app links, own authentication history and an Auth
+logout form. To change users in one browser, sign out of the used apps and then
+Auth; otherwise its remaining SSO session can automatically sign the same person
+back in. The portal does not claim to sign out every app/device or revoke grants.
+
+No new dependency, credential or profile is required. AUTH_TASK_UI_URL and
+AUTH_KPI_UI_URL configure standalone portal links (loopback defaults 8080/8081);
+HTTPS is required outside loopback. Container deployments must explicitly pass
+these variables when overriding them. Flyway V4 runs automatically on startup.
+Activity starts with this deployment; no historical events are invented.
+
+Verify from repository root:
+
+```sh
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+docker build -t auth-server:local enterprise-platform/auth-server
+python3 scripts/smoke-auth-container.py --image auth-server:local
+docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml up --build -d --wait auth-server
+```
+
+AccountPortalIT covers actual HTTP portal/session/CSRF/history ownership, capped
+pages, invalid queries, known/unknown login failures and disabled identities.
+AuthorizationCodeFlowIT also checks OIDC logout activity. AuthActivityServiceTest
+verifies audit write failure cannot block logout and increments its failure metric.
+These tests use the existing test profile/PostgreSQL Testcontainers/generated
+material and require no extra environment variables.
+
+The portal's browser checks render the production assets with fixture API data;
+the integration tests above verify the real HTTP/database/security behavior.
+With Node 24 and the existing frontend Playwright dependency installed, run from
+repository root:
+
+```sh
+npm --prefix enterprise-platform/frontend ci
+npm --prefix enterprise-platform/frontend exec -- playwright install chromium
+node enterprise-platform/auth-server/src/test/browser/account-portal.cjs
+```
+
+This checks desktop/mobile layout, pagination, safe text rendering, application
+links, API failure states and the CSRF logout form. Fixture screenshots are saved
+in the system temporary directory as auth-account-portal.png and
+auth-account-portal-mobile.png; they contain no real account information.
+
+## Custom Auth login page
+
+Open http://127.0.0.1:9000/login to use the responsive sign-in page. It uses the
+same existing platform credentials, session-bound CSRF, OAuth return destination
+and Auth activity recording. Password visibility/Caps Lock hints are optional
+JavaScript enhancements; sign-in and logout confirmation work without JavaScript.
+HTML credential failures return to the form with a generic message, while API
+clients retain 401 Problem Details. No new dependency, configuration or migration
+is required. Credentials are not populated from private development fixtures.
+
+From repository root, after installing the frontend Playwright dependency and
+Chromium as described above:
+
+```sh
+node enterprise-platform/auth-server/src/test/browser/login-page.cjs
+mvn -f enterprise-platform/auth-server/pom.xml clean verify
+docker build -t auth-server:local enterprise-platform/auth-server
+python3 scripts/smoke-auth-container.py --image auth-server:local
+docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml up -d --no-deps --wait auth-server
+```
+
+The browser test checks desktop/mobile rendering, keyboard visibility controls,
+native validation, CSRF form POST, error/logout notices, redirects and JavaScript-free
+submission using fixture responses. It writes auth-login-desktop.png and
+auth-login-mobile.png to the system temporary directory. AccountPortalIT tests the
+real server form/token, query-value isolation and identical browser failures for
+unknown/disabled/wrong-password cases. Existing OIDC tests cover real callbacks,
+session rotation, logout/CSRF/session replay and API errors.

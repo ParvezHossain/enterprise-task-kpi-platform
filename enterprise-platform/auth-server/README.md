@@ -76,7 +76,7 @@ production databases; see the migration guidance linked above.
 Expected: HTTP 200 with `"status":"UP"` (Boot may also list health group names).
 No health components or database details
 are exposed anonymously. A database outage makes the database health indicator
-fail. OIDC discovery/JWKS and the generated login form are public. Protocol endpoints
+fail. OIDC discovery/JWKS and the custom login form are public. Protocol endpoints
 enforce their client/user authentication; unrelated endpoints and Swagger remain
 denied. See [API contracts](../../docs/api.md).
 
@@ -204,3 +204,19 @@ The development material utility now also generates private stack.env, six local
 users, team/project/task seed SQL and users.json. Follow
 [complete setup](../../docs/development.md#complete-local-platform) rather than
 manually assembling the full Compose environment.
+
+## Personal account portal
+
+Open http://127.0.0.1:9000/ to reach the authenticated `/account` portal. It includes
+a visual guide to separate Auth/Task/KPI sessions, configured workspace links,
+current identity, paginated own sign-in activity and a CSRF-protected Auth sign-out
+form. Other app sessions/grants retain their independent lifetimes. See
+[portal setup](../../docs/development.md#auth-account-portal),
+[API contracts](../../docs/api.md#auth-personal-account-portal) and
+[ADR 0022](../../docs/decisions/0022-personal-auth-account-portal.md).
+
+The matching [custom login page](../../docs/development.md#custom-auth-login-page)
+at http://127.0.0.1:9000/login has a responsive layout, password visibility control,
+generic credential-error message and Auth signed-out notice. Native CSRF-protected
+form submission preserves OAuth callbacks and works without JavaScript. GET
+/logout provides a matching confirmation; only POST invalidates the session.

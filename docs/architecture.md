@@ -433,3 +433,20 @@ The Task machine feed accepts either the array form or the OAuth space-delimited
 string form. Real token/feed integration tests prevent assuming the older string
 shape. Managed-team lookups are capped at 1,001 rows and reject actors managing
 more than the supported 1,000-team limit, keeping authorization queries bounded.
+
+## Personal Auth portal
+
+[ADR 0022](decisions/0022-personal-auth-account-portal.md) adds a same-origin personal
+account portal at Auth `/account`, with `/` redirecting there. Session-authenticated
+DTOs provide current identity/CSRF/application links and bounded own authentication
+activity. Activity uses a separate append/read-only Auth table and never includes
+credentials or raw session identifiers. No dependency or framework version changes.
+The Spring Security 7.1.1 event APIs and OIDC `logoutResponseHandler` wrap the existing
+framework behavior. Explicit Auth logout and independent BFF/grant boundaries remain
+visible in the interface rather than implying global sign-out.
+
+[ADR 0023](decisions/0023-custom-auth-login-presentation.md) adds custom same-origin
+login/logout-confirmation presentation with server-rendered CSRF and native form
+submission. Framework POST authentication, session rotation and OAuth callbacks
+remain active. Browser credential failures use a generic fixed redirect; API
+callers keep 401 Problem Details. No dependencies, schema or stack versions change.

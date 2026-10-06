@@ -110,6 +110,18 @@ AUTH_TASK_CLIENT_SECRET_HASH and AUTH_KPI_CLIENT_SECRET_HASH. See
 commands. Do not skip tests to obtain a successful final build. For shared build,
 dependency, or cross-module changes, verify all three independent projects.
 For documentation-only tickets, inspect the diff and run `git diff --check`.
+AccountPortalIT verifies Auth portal/session/CSRF, own activity isolation, capped
+pagination, invalid query handling and disabled identities. AuthActivityServiceTest
+checks nonblocking audit-write failures; AuthorizationCodeFlowIT includes OIDC
+logout activity. They use the same Auth verify command/test prerequisites above.
+Auth portal browser checks: `node enterprise-platform/auth-server/src/test/browser/account-portal.cjs`
+from repository root; requires Node 24, `npm --prefix enterprise-platform/frontend ci`
+and installed Playwright Chromium. Uses production assets with fixture API data;
+see `docs/development.md#auth-account-portal` for setup and screenshot locations.
+Auth login browser checks: `node enterprise-platform/auth-server/src/test/browser/login-page.cjs`
+with the same Node/Playwright prerequisites. AccountPortalIT also covers custom
+login/confirmation CSRF, query isolation and browser credential-error redirects;
+API failures retain 401. See `docs/development.md#custom-auth-login-page`.
 All three services now have application tests. The frontend has UI and real Compose workflow tests.
 
 ## Documentation and architectural decisions

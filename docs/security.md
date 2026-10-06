@@ -138,12 +138,16 @@ request-body or authorization-header logging at an ingress proxy.
 
 ## Login, logout, and consent policy (TICKET-0106)
 
-`GET /login` serves Spring Security's generated form, and `POST /login` authenticates
+`GET /login` serves the custom same-origin form, and `POST /login` authenticates
 email/password with the session-bound CSRF token. Login rotates the session ID and
 uses a saved OAuth authorization request when present; otherwise it redirects to
-`/account`. That landing page requires authentication and exposes no identity data.
+`/account`. The authenticated portal reads the current user's identity and activity
+through session-protected DTO endpoints; public static assets contain no identity data.
 Unknown users, wrong passwords, and disabled users get the same generic
-401 Problem Details response. Account and authentication responses retain no-store cache headers.
+401 Problem Details response for API/non-HTML callers. Browser HTML credential
+failures redirect to `/login?error` with the same fixed generic message for all
+three cases. Submitted credentials and query values are never echoed. Account and
+authentication responses retain no-store cache headers.
 
 `GET /logout` only displays confirmation. `POST /logout` requires valid CSRF,
 invalidates the HTTP session, clears its security context and CSRF state, explicitly
@@ -188,7 +192,8 @@ bodies, or rejected values are logged by these handlers or returned to clients.
 Only allowlisted OAuth error codes survive normalization; query strings are
 excluded from Problem Details instances. Existing credential-log restrictions
 remain in force. Failed login uses the same 401 body for unknown/disabled users and
-wrong passwords, including HTML callers. CSRF and session protections are unchanged.
+wrong passwords for non-HTML callers; browser HTML credential failures use the
+generic `/login?error` redirect described above. CSRF and session protections are unchanged.
 See [the exact error contract](api.md#error-responses-ticket-0107).
 
 ## Observability access and log policy (TICKET-0108)
@@ -286,8 +291,9 @@ Auth login limits are configurable, address-scoped and memory-bounded. They are
 per-instance, reset on restart and do not trust caller forwarding headers.
 Horizontal deployment should use an ingress/shared Redis limiter. CSP, nosniff
 and Referrer-Policy are explicit; Spring HSTS remains conditional on HTTPS.
-Auth generated login permits inline styles only; deployed app scripts/styles
-are local and require no unsafe-inline CSP allowance.
+Auth custom login uses local scripts/styles; the existing Auth style CSP permits
+inline styles for framework pages, while script policy remains same-origin.
+Deployed app scripts/styles are local and require no unsafe-inline CSP allowance.
 
 Incoming correlation IDs accept only 1–64 ASCII letters/digits/hyphens. Invalid
 values are replaced with generated UUIDs; MDC is restored in finally blocks.
@@ -298,3 +304,28 @@ Nginx access and request-error logs are disabled because upstream error messages
 can include OAuth callback query strings. Backend structured completion logs and
 container health checks provide request/status and availability diagnostics.
 Do not enable raw proxy request logging on OAuth paths in production.
+
+## Personal Auth portal and activity boundary
+
+The authenticated `/account` page distinguishes identity-provider and application
+sessions, offers trusted configured app links and a CSRF-protected Auth sign-out
+form. GET `/` redirects there instead of denying the saved login destination.
+Account/history DTOs derive ownership from the authenticated session UUID and
+reload enabled identity state; Admin receives no cross-user history privilege.
+Frontend identity/activity strings are rendered with textContent, and assets are
+local under the existing CSP. No credential/token/session-id display is provided.
+
+V4 stores only event UUID, existing user UUID, allowlisted kind and time. Record
+interactive successful logins, failed credentials for known emails, form logout
+and authenticated OIDC logout. Public failures stay generic in browser/API modes.
+Unknown emails, CSRF rejection, rate limiting, token refresh, natural expiry and
+BFF logout do not produce these per-user history rows. IP/user agent/session IDs
+and credential material are excluded. Failed writes warn with fixed text and
+increment auth.activity.write.failures, without blocking session invalidation.
+Operators must monitor this counter and establish retention with bounded privileged
+maintenance; this view is not guaranteed compliance/security audit coverage.
+
+Auth logout ends its current browser session. Task/KPI BFF logout and refresh-token
+revocation keep their independent existing boundaries; the portal neither displays
+unobservable app session state nor offers an unsupported all-devices logout. See
+[ADR 0022](decisions/0022-personal-auth-account-portal.md).

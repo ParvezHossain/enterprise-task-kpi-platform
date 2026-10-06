@@ -25,7 +25,7 @@ class ProductionSeedIsolationIT extends PostgresRepositoryTestSupport {
         assertThat(roles.count()).isZero();
         assertThat(permissions.count()).isZero();
         assertThat(users.count()).isZero();
-        assertThat(flyway.info().applied()).hasSize(3);
+        assertThat(flyway.info().applied()).hasSize(4);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM oauth2_registered_client", Long.class)).isZero();
         assertThat(flyway.info().applied()[0].getVersion().toString()).isEqualTo("1");
     }

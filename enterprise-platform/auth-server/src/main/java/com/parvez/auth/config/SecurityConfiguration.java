@@ -13,7 +13,11 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 public class SecurityConfiguration {
     @Bean
     @Order(2)
-    SecurityFilterChain applicationSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain applicationSecurityFilterChain(HttpSecurity http,
+            com.parvez.auth.service.AuthActivityService activities) throws Exception {
+        var browserLogin = new org.springframework.security.web.util.matcher.MediaTypeRequestMatcher(
+                org.springframework.http.MediaType.TEXT_HTML);
+        browserLogin.setIgnoredMediaTypes(java.util.Set.of(org.springframework.http.MediaType.ALL));
         return http
                 .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"))
                         .referrerPolicy(referrer -> referrer.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN)))
@@ -22,26 +26,34 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.HEAD, "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/actuator", "/actuator/**").authenticated()
                         .requestMatchers("/login", "/error").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/account").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/", "/account-assets/account.css",
+                                "/account-assets/account.js", "/account-assets/login.css",
+                                "/account-assets/login.js", "/logout").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/account", "/api/v1/account",
+                                "/api/v1/account/activity").authenticated()
                         .anyRequest().denyAll())
                 .formLogin(form -> form
+                        .loginPage("/login")
+                        .loginProcessingUrl("/login")
                         // Honor saved OAuth authorization requests; standalone login has a usable destination.
                         .defaultSuccessUrl("/account", false)
-                        .failureHandler((request, response, exception) -> response.setStatus(401)))
+                        .failureHandler((request, response, exception) -> {
+                            activities.failedLogin(request.getParameter("username"));
+                            if (browserLogin.matches(request)) response.sendRedirect("/login?error");
+                            else response.setStatus(401);
+                        }))
                 .logout(logout -> logout
                         // CSRF remains enabled: GET shows confirmation, only POST performs logout.
                         .logoutUrl("/logout")
                         .invalidateHttpSession(true)
                         .clearAuthentication(true)
                         .deleteCookies("JSESSIONID")
-                        // Keep the default /login?logout success URL so the generated
-                        // login filter also renders its signed-out notice.
+                        .logoutSuccessUrl("/login?logout")
                         .permitAll())
                 .exceptionHandling(exceptions -> exceptions
                         .defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                                 request -> request.getServletPath().equals("/actuator")
                                         || request.getServletPath().startsWith("/actuator/"))
-                        // A global entry point suppresses Spring's generated login page.
                         .defaultAuthenticationEntryPointFor(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
                                 request -> !String.valueOf(request.getHeader("Accept")).contains("text/html")))
                 .build();

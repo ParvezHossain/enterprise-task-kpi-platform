@@ -1,1 +1,77 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Component guide</title><link rel="stylesheet" href="/shared/style.css"></head><body><main class="max-w-5xl mx-auto p-8 space-y-6"><h1>Shared design system</h1><p class="muted">HTML, JavaScript and Tailwind CSS. Keyboard focus and responsive layouts are shared across both workspaces.</p><div class="md:grid md:grid-cols-3 gap-4"><aside class="bg-slate-900 rounded-xl p-4"><nav aria-label="Example"><a class="nav-link nav-active" href="#forms">Dashboard</a><a class="nav-link" href="#tables">My tasks</a></nav></aside><section class="card md:col-span-2"><h2>Cards and actions</h2><p class="muted my-3">Supporting text</p><span class="badge">APPROVED</span><div class="flex flex-wrap gap-2 mt-4"><button class="btn" id="open">Open modal</button><button class="btn btn-secondary" id="notify">Show toast</button><button class="btn" disabled>Disabled</button></div></section></div><section class="card" id="forms"><h2>Forms</h2><form class="grid md:grid-cols-2 gap-4 mt-4"><div><label for="name">Title</label><input id="name" required placeholder="Task title"></div><div><label for="priority">Priority</label><select id="priority"><option>HIGH</option><option>MEDIUM</option></select></div><div><label for="description">Description</label><textarea id="description"></textarea></div><button class="btn self-end" type="submit">Validate</button></form></section><section class="card overflow-x-auto" id="tables"><h2>Tables</h2><table><thead><tr><th>Task</th><th>Status</th></tr></thead><tbody><tr><td>Release review</td><td><span class="badge">DRAFT</span></td></tr></tbody></table><div class="flex gap-3 mt-4"><button class="btn btn-secondary" disabled>Previous</button><span class="muted">Page 1</span><button class="btn btn-secondary">Next</button></div></section><section class="card"><h2>Feedback states</h2><p role="status" class="muted my-4">Loading…</p><div class="empty">No tasks yet. Create a task to get started.</div><div class="error" role="alert">An example validation error.</div></section><dialog id="modal" class="rounded-xl p-8 shadow-xl m-auto"><h2>Confirm action</h2><p class="muted my-4">Review your changes before proceeding.</p><form method="dialog"><button class="btn">Close</button></form></dialog><div id="toast" hidden class="fixed bottom-6 right-6 bg-slate-900 text-white p-4 rounded-lg" role="status">Changes saved.</div></main><script type="module" src="/shared/style-guide.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Component guide</title>
+    <link rel="stylesheet" href="/shared/style.css">
+</head>
+<body>
+<main class="max-w-5xl mx-auto p-8 space-y-6"><h1>Shared design system</h1>
+    <p class="muted">HTML, JavaScript and Tailwind CSS. Keyboard focus and responsive layouts are shared across both
+        workspaces.</p>
+    <div class="md:grid md:grid-cols-3 gap-4">
+        <aside class="bg-slate-900 rounded-xl p-4">
+            <nav aria-label="Example"><a class="nav-link nav-active" href="#forms">Dashboard</a><a class="nav-link"
+                                                                                                   href="#tables">My
+                tasks</a></nav>
+        </aside>
+        <section class="card md:col-span-2"><h2>Cards and actions</h2>
+            <p class="muted my-3">Supporting text</p><span class="badge">APPROVED</span>
+            <div class="flex flex-wrap gap-2 mt-4">
+                <button class="btn" id="open">Open modal</button>
+                <button class="btn btn-secondary" id="notify">Show toast</button>
+                <button class="btn" disabled>Disabled</button>
+            </div>
+        </section>
+    </div>
+    <section class="card" id="forms"><h2>Forms</h2>
+        <form class="grid md:grid-cols-2 gap-4 mt-4">
+            <div><label for="name">Title</label><input id="name" required placeholder="Task title"></div>
+            <div><label for="priority">Priority</label><select id="priority">
+                <option>HIGH</option>
+                <option>MEDIUM</option>
+            </select></div>
+            <div><label for="description">Description</label><textarea id="description"></textarea></div>
+            <button class="btn self-end" type="submit">Validate</button>
+        </form>
+    </section>
+    <section class="card overflow-x-auto" id="tables"><h2>Tables</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>Task</th>
+                <th>Status</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Release review</td>
+                <td><span class="badge">DRAFT</span></td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="flex gap-3 mt-4">
+            <button class="btn btn-secondary" disabled>Previous</button>
+            <span class="muted">Page 1</span>
+            <button class="btn btn-secondary">Next</button>
+        </div>
+    </section>
+    <section class="card"><h2>Feedback states</h2>
+        <p role="status" class="muted my-4">Loading…</p>
+        <div class="empty">No tasks yet. Create a task to get started.</div>
+        <div class="error" role="alert">An example validation error.</div>
+    </section>
+    <dialog id="modal" class="rounded-xl p-8 shadow-xl m-auto"><h2>Confirm action</h2>
+        <p class="muted my-4">Review your changes before proceeding.</p>
+        <form method="dialog">
+            <button class="btn">Close</button>
+        </form>
+    </dialog>
+    <div id="toast" hidden class="fixed bottom-6 right-6 bg-slate-900 text-white p-4 rounded-lg" role="status">Changes
+        saved.
+    </div>
+</main>
+<script type="module" src="/shared/style-guide.js"></script>
+</body>
+</html>

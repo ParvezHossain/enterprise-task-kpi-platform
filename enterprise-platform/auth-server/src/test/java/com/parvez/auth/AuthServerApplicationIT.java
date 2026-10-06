@@ -59,7 +59,7 @@ class AuthServerApplicationIT {
 
     @Test
     void otherEndpointsAreNotPublic() throws Exception {
-        for (String path : new String[]{"/actuator/env", "/v3/api-docs", "/"}) {
+        for (String path : new String[]{"/actuator/env", "/v3/api-docs", "/api/v1/account", "/api/v1/account/activity"}) {
             assertThat(get(path).statusCode()).as(path).isEqualTo(401);
         }
     }

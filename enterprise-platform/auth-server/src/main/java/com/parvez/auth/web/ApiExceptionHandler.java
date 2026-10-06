@@ -27,6 +27,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(exception, null, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<Object> invalidQuery(Exception exception, WebRequest request) {
+        return handleExceptionInternal(exception, null, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     ResponseEntity<Object> authentication(Exception exception, WebRequest request) {
         return handleExceptionInternal(exception, null, new HttpHeaders(), HttpStatus.UNAUTHORIZED, request);

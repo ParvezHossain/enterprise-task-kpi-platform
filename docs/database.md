@@ -212,3 +212,14 @@ roles. Auth runtime registered-client access remains read-only; explicitly confi
 machine-client startup provisioning uses the Flyway migration connection.
 Generated local fixture SQL runs only through the explicit dev-guarded seed tool.
 Do not change already-applied migrations or use ddl-auto=update.
+
+## Auth authentication activity (V4)
+
+V4__authentication_activity.sql creates authentication_activity with UUID primary
+key, user_id referencing users (ON DELETE RESTRICT), allowlisted event and
+TIMESTAMPTZ occurred_at. A user/time/UUID index supports bounded descending history
+queries (at most 51 rows for a 50-row page, including lookahead). Runtime gets only
+SELECT/INSERT; no history edit/delete API exists. Operators own retention/archive
+policy and use a privileged maintenance connection with bounded batches. No old
+migrations are edited. Existing login events before migration are not backfilled.
+The table stores no emails, credentials, IPs, user agents or session identifiers.

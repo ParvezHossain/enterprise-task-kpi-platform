@@ -24,8 +24,13 @@ public class UserService {
     private final Validator validator;
     private final TransactionTemplate transaction;
 
-    public UserService(UserRepository users, RoleRepository roles, PasswordEncoder passwords,
-                       Validator validator, PlatformTransactionManager transactionManager) {
+    public UserService(
+            UserRepository users,
+            RoleRepository roles,
+            PasswordEncoder passwords,
+            Validator validator,
+            PlatformTransactionManager transactionManager
+    ) {
         this.users = users;
         this.roles = roles;
         this.passwords = passwords;

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirm sign out · Enterprise Platform</title>
+  <link rel="stylesheet" href="/account-assets/login.css">
+</head>
+<body class="confirmation-page">
+  <main class="confirmation-card">
+    <a class="brand" href="/account"><span class="brand-mark" aria-hidden="true">P</span><span>Enterprise Platform</span></a>
+    <p class="overline form-overline">THIS BROWSER</p><h1>Sign out of Auth?</h1>
+    <p class="form-description">This ends your Auth session. Task and KPI manage their own sessions; sign out within those applications as well when needed.</p>
+    <form action="/logout" method="post"><input name="{{csrfName}}" type="hidden" value="{{csrfToken}}"><button class="submit-button" type="submit">Sign out of Auth <span aria-hidden="true">↪</span></button></form>
+    <a class="cancel-link" href="/account">Back to your account</a>
+  </main>
+</body>
+</html>

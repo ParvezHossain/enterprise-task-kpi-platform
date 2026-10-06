@@ -28,6 +28,9 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 
 auth:
+  portal:
+    task-url: ${AUTH_TASK_UI_URL:http://127.0.0.1:8080/}
+    kpi-url: ${AUTH_KPI_UI_URL:http://127.0.0.1:8081/}
   kpi-sync:
     secret-hash: ${AUTH_KPI_SYNC_SECRET_HASH:}
   signing:

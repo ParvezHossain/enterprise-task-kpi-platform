@@ -22,7 +22,10 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
     private final Clock clock;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public LoginRateLimitFilter(@Value("${auth.login-rate-limit.attempts:20}") int limit, @Value("${auth.login-rate-limit.window-seconds:60}") long seconds) {
+    public LoginRateLimitFilter(
+            @Value("${auth.login-rate-limit.attempts:20}") int limit,
+            @Value("${auth.login-rate-limit.window-seconds:60}") long seconds
+    ) {
         this(limit, seconds, Clock.systemUTC());
     }
 
@@ -46,7 +49,11 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain chain
+    ) throws IOException, ServletException {
         if ("POST".equals(request.getMethod()) && "/login".equals(request.getServletPath()) && !allowed(request.getRemoteAddr())) {
             response.setStatus(429);
             response.setHeader("Retry-After", Long.toString(interval / 1000));

@@ -137,7 +137,7 @@ responses with an OAuth `error` extension in Problem Details; login failure is 4
 | Endpoint | Behavior |
 | --- | --- |
 | `GET /login` | Public HTML login form containing the session-bound `_csrf` field |
-| `POST /login` | Form `username`, `password`, `_csrf`; 302 to the saved authorization request or `/account`, or 401 Problem Details on invalid credentials; missing/invalid CSRF returns 403 |
+| `POST /login` | Form `username`, `password`, `_csrf`; 302 to the saved authorization request or `/account`; invalid HTML credentials redirect to `/login?error`, non-HTML credentials get 401 Problem Details; missing/invalid CSRF returns 403 |
 | `GET /account` | Authenticated no-store HTML landing page and sign-out link; anonymous HTML requests redirect to `/login` (non-HTML callers receive 401) |
 | `GET /logout` | Confirmation form and fresh `_csrf`; does not terminate authentication |
 | `POST /logout` | Valid CSRF ends the browser session and expires JSESSIONID; 302 to `/login?logout`; missing/foreign CSRF returns 403 and preserves the session |
@@ -188,6 +188,10 @@ preserved; untrusted OAuth descriptions/URIs are omitted from both bodies and
 Bearer challenges. Validated OAuth callback
 error redirects and redirects to the login form remain 302 protocol responses,
 not HTTP error bodies. HEAD responses retain HTTP semantics and have no body.
+Invalid login credentials from browser callers accepting `text/html` now use a
+302 redirect to `/login?error`, rather than a 401 response. API/non-HTML callers
+retain the exact 401 contract above. CSRF rejection (403) and rate limiting (429,
+with Retry-After) retain their Problem Details responses for every caller.
 Errors rejected by the HTTP connector before servlet processing are outside this
 application contract.
 
@@ -283,3 +287,42 @@ Trend and distribution responses also use bounded pagination: page defaults to 0
 size defaults to 16 and is capped at 16. Their envelope data contains content,
 page, size and hasNext. Invalid negative pages or nonpositive sizes return 400.
 The default page includes all monthly buckets in the maximum 366-day date range.
+
+## Auth personal account portal
+
+GET `/` is public and redirects (302) to `/account`; unauthenticated HTML account
+requests redirect to `/login`. GET `/account` serves a same-origin HTML portal for
+authenticated sessions. `/account-assets/account.css` and `account.js` are public
+GET assets containing no identity information.
+
+GET `/api/v1/account` requires an Auth login session (any role) and returns:
+
+```json
+{"subject":"<user-uuid>","email":"<current-email>","roles":["EMPLOYEE"],"csrfToken":"<csrf-token>","csrfParameterName":"_csrf","taskUrl":"http://127.0.0.1:8080/","kpiUrl":"http://127.0.0.1:8081/"}
+```
+
+GET `/api/v1/account/activity?page=0&size=10` requires the same session and returns
+`content` entries (`id`, `event`, `occurredAt`), `page`, effective `size` and `hasNext`.
+Size must be positive, caps at 50; page must be 0–100000. Invalid query returns 400.
+Ownership is always the authenticated UUID, not a supplied userId. All roles see
+only their own rows; no admin directory/history route exists. Disabled identities
+get 401. Unauthenticated JSON gets 401. Both DTO endpoints use no-store responses.
+
+Events are LOGIN_SUCCEEDED, LOGIN_FAILED (existing canonical email only), and
+AUTH_LOGOUT (form and authenticated OIDC sign-out). No password, token, session ID,
+IP address or user-agent fields are returned. The history is not a list of active
+sessions or a complete security audit. POST `/logout` continues to require a valid
+form CSRF token, invalidate JSESSIONID and redirect `/login?logout`; the portal's
+form sends that token. It does not end Task/KPI sessions or revoke OAuth grants.
+
+## Custom Auth sign-in presentation
+
+GET `/login` serves a responsive HTML form with server-rendered session CSRF,
+email (`username`) and password fields. GET `/login?error` shows a fixed generic
+credential error; GET `/login?logout` shows an Auth-only signed-out notice.
+Query values are never rendered. GET `/logout` serves a matching confirmation
+form and does not change authentication state. Both forms work without JavaScript.
+Public GET assets are `/account-assets/login.css` and `/account-assets/login.js`.
+POST processing, saved OAuth request redirects, session rotation and logout
+invalidation remain Spring Security responsibilities. No remember-me, account
+creation, password recovery or alternative identity provider is added.
