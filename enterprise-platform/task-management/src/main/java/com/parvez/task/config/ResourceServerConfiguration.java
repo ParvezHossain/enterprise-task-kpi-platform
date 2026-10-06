@@ -30,7 +30,7 @@ public class ResourceServerConfiguration {
     }
 
     @Bean
-        @Profile("!local-stub")
+    @Profile("!local-stub")
     JwtDecoder jwtDecoder(TaskJwtProperties properties) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri().toString()).build();
         OAuth2TokenValidator<Jwt> audienceValidator = jwt -> jwt.getAudience().contains(properties.audience())
@@ -43,14 +43,20 @@ public class ResourceServerConfiguration {
 
     @org.springframework.beans.factory.annotation.Value("${task.cors.allowed-origins:http://127.0.0.1:8080}")
     private java.util.List<String> allowedOrigins;
+
     @Bean
     org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
-        if(allowedOrigins.stream().anyMatch(origin -> origin.contains("*"))) throw new IllegalArgumentException("Wildcard CORS origins are forbidden");
-        var cors=new org.springframework.web.cors.CorsConfiguration();cors.setAllowedOrigins(allowedOrigins);
-        cors.setAllowedMethods(java.util.List.of("GET","POST","PATCH","OPTIONS"));
-        cors.setAllowedHeaders(java.util.List.of("Authorization","Content-Type","Idempotency-Key","X-Request-ID"));
-        cors.setExposedHeaders(java.util.List.of("X-Request-ID","Location","Retry-After"));cors.setAllowCredentials(false);
-        var source=new org.springframework.web.cors.UrlBasedCorsConfigurationSource();source.registerCorsConfiguration("/**",cors);return source;
+        if (allowedOrigins.stream().anyMatch(origin -> origin.contains("*")))
+            throw new IllegalArgumentException("Wildcard CORS origins are forbidden");
+        var cors = new org.springframework.web.cors.CorsConfiguration();
+        cors.setAllowedOrigins(allowedOrigins);
+        cors.setAllowedMethods(java.util.List.of("GET", "POST", "PATCH", "OPTIONS"));
+        cors.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"));
+        cors.setExposedHeaders(java.util.List.of("X-Request-ID", "Location", "Retry-After"));
+        cors.setAllowCredentials(false);
+        var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cors);
+        return source;
     }
 
     @Bean
@@ -58,9 +64,9 @@ public class ResourceServerConfiguration {
         return http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"))
-                    .referrerPolicy(referrer -> referrer.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN)))
-                .exceptionHandling(errors -> errors.authenticationEntryPoint((request,response,error) -> com.parvez.task.web.TaskProblemResponses.write(request,response,401,"Unauthorized"))
-                    .accessDeniedHandler((request,response,error) -> com.parvez.task.web.TaskProblemResponses.write(request,response,403,"Forbidden")))
+                        .referrerPolicy(referrer -> referrer.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN)))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, error) -> com.parvez.task.web.TaskProblemResponses.write(request, response, 401, "Unauthorized"))
+                        .accessDeniedHandler((request, response, error) -> com.parvez.task.web.TaskProblemResponses.write(request, response, 403, "Forbidden")))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize

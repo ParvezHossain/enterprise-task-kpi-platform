@@ -1,2 +1,4 @@
 package com.parvez.kpi.service;
-public class KpiUnavailableException extends RuntimeException {}
+
+public class KpiUnavailableException extends RuntimeException {
+}

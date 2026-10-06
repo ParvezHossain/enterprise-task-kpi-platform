@@ -17,7 +17,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(Exception exception, Object body,
-            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+                                                             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return new ResponseEntity<>(ProblemResponses.create(status.value(),
                 ((ServletWebRequest) request).getRequest().getRequestURI()), headers, status);
     }

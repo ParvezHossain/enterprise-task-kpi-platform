@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
@@ -11,9 +12,12 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.util.Assert;
 
-/** Retains Spring's storage/mappers while bounding its non-primary-key token lookup. */
+/**
+ * Retains Spring's storage/mappers while bounding its non-primary-key token lookup.
+ */
 public final class BoundedJdbcAuthorizationService extends JdbcOAuth2AuthorizationService {
     private static final Map<String, String> COLUMNS;
+
     static {
         var columns = new LinkedHashMap<String, String>();
         columns.put("state", "state");

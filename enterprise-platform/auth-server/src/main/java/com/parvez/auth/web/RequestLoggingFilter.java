@@ -2,6 +2,7 @@ package com.parvez.auth.web;
 
 import java.io.IOException;
 import java.util.UUID;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,7 +15,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Request-local correlation; untrusted headers cannot supply log field values. */
+/**
+ * Request-local correlation; untrusted headers cannot supply log field values.
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestLoggingFilter extends OncePerRequestFilter {
@@ -22,7 +25,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-            FilterChain chain) throws ServletException, IOException {
+                                    FilterChain chain) throws ServletException, IOException {
         var previous = MDC.getCopyOfContextMap();
         String requestId = UUID.randomUUID().toString();
         MDC.put("requestId", requestId);

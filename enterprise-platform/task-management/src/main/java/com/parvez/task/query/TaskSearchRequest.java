@@ -2,6 +2,7 @@ package com.parvez.task.query;
 
 import java.time.Instant;
 import java.util.UUID;
+
 import com.parvez.task.domain.TaskPriority;
 import com.parvez.task.domain.TaskStatus;
 import jakarta.validation.constraints.Min;
@@ -21,5 +22,5 @@ public record TaskSearchRequest(
         UUID createdBy,
         Instant createdFrom,
         Instant createdTo,
-        @jakarta.validation.constraints.Size(max=200) String title) {
+        @jakarta.validation.constraints.Size(max = 200) String title) {
 }

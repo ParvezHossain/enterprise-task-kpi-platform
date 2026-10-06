@@ -1,11 +1,14 @@
 package com.parvez.auth.security;
 
 import java.util.Set;
+
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 
-/** Only reserved, operator-owned first-party clients may opt out of consent. */
+/**
+ * Only reserved, operator-owned first-party clients may opt out of consent.
+ */
 public final class ConsentEnforcingRegisteredClientRepository implements RegisteredClientRepository {
     private static final Set<String> FIRST_PARTY_CLIENTS = Set.of("task-management-ui", "kpi-ui");
     private final RegisteredClientRepository delegate;

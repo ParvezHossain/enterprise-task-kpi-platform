@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -38,10 +39,23 @@ public class Role {
     protected Role() {
     }
 
-    public Role(RoleName name) { this.name = Objects.requireNonNull(name); }
+    public Role(RoleName name) {
+        this.name = Objects.requireNonNull(name);
+    }
 
-    public UUID getId() { return id; }
-    public RoleName getName() { return name; }
-    public Set<Permission> getPermissions() { return Collections.unmodifiableSet(permissions); }
-    public void grantPermission(Permission permission) { permissions.add(Objects.requireNonNull(permission)); }
+    public UUID getId() {
+        return id;
+    }
+
+    public RoleName getName() {
+        return name;
+    }
+
+    public Set<Permission> getPermissions() {
+        return Collections.unmodifiableSet(permissions);
+    }
+
+    public void grantPermission(Permission permission) {
+        permissions.add(Objects.requireNonNull(permission));
+    }
 }

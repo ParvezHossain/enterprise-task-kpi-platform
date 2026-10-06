@@ -4,6 +4,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+
 import com.parvez.task.service.InvalidTaskReferenceException;
 import com.parvez.task.service.InvalidTaskQueryException;
 import com.parvez.task.service.TaskNotFoundException;
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class TaskApiExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> validation(MethodArgumentNotValidException exception,
-            HttpServletRequest request) {
+                                             HttpServletRequest request) {
         Map<String, String> errors = exception.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(error -> error.getField(), error -> error.getDefaultMessage(),
                         (first, ignored) -> first, TreeMap::new));
@@ -40,7 +41,7 @@ public class TaskApiExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> unreadableRequest(HttpMessageNotReadableException exception,
-            HttpServletRequest request) {
+                                                    HttpServletRequest request) {
         return response(problem(HttpStatus.BAD_REQUEST, "Invalid request",
                 "The request body is malformed or contains an unsupported value.",
                 "urn:task-management:problem:invalid-request", request));
@@ -55,7 +56,7 @@ public class TaskApiExceptionHandler {
 
     @ExceptionHandler(InvalidTaskReferenceException.class)
     ResponseEntity<ProblemDetail> invalidReference(InvalidTaskReferenceException exception,
-            HttpServletRequest request) {
+                                                   HttpServletRequest request) {
         return response(problem(HttpStatus.BAD_REQUEST, "Invalid task reference", exception.getMessage(),
                 "urn:task-management:problem:invalid-task-reference", request));
     }
@@ -71,7 +72,7 @@ public class TaskApiExceptionHandler {
     ResponseEntity<ProblemDetail> conflict(RuntimeException exception, HttpServletRequest request) {
         return response(problem(HttpStatus.CONFLICT, "Task conflict",
                 exception instanceof TaskVersionConflictException || exception instanceof InvalidTaskTransitionException
-                    ? exception.getMessage() : "The task changed while the request was being processed.",
+                        ? exception.getMessage() : "The task changed while the request was being processed.",
                 "urn:task-management:problem:conflict", request));
     }
 
@@ -82,26 +83,29 @@ public class TaskApiExceptionHandler {
     }
 
     @ExceptionHandler(com.parvez.task.service.IdempotencyException.class)
-    ResponseEntity<ProblemDetail> idempotency(com.parvez.task.service.IdempotencyException exception,HttpServletRequest request) {
-        return response(problem(exception.conflict()?HttpStatus.CONFLICT:HttpStatus.BAD_REQUEST,"Idempotency error",exception.getMessage(),"urn:task-management:problem:idempotency",request));
+    ResponseEntity<ProblemDetail> idempotency(com.parvez.task.service.IdempotencyException exception, HttpServletRequest request) {
+        return response(problem(exception.conflict() ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST, "Idempotency error", exception.getMessage(), "urn:task-management:problem:idempotency", request));
     }
+
     @ExceptionHandler(org.springframework.dao.CannotAcquireLockException.class)
-    ResponseEntity<ProblemDetail> busy(Exception exception,HttpServletRequest request) {
-        return ResponseEntity.status(409).header("Retry-After","1").body(problem(HttpStatus.CONFLICT,"Command busy","Retry with the same idempotency key.","urn:task-management:problem:busy",request));
+    ResponseEntity<ProblemDetail> busy(Exception exception, HttpServletRequest request) {
+        return ResponseEntity.status(409).header("Retry-After", "1").body(problem(HttpStatus.CONFLICT, "Command busy", "Retry with the same idempotency key.", "urn:task-management:problem:busy", request));
     }
+
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
-    ResponseEntity<ProblemDetail> integrity(Exception exception,HttpServletRequest request) {
-        return response(problem(HttpStatus.CONFLICT,"Task conflict","The operation conflicts with the current task data.","urn:task-management:problem:conflict",request));
+    ResponseEntity<ProblemDetail> integrity(Exception exception, HttpServletRequest request) {
+        return response(problem(HttpStatus.CONFLICT, "Task conflict", "The operation conflicts with the current task data.", "urn:task-management:problem:conflict", request));
     }
+
     @ExceptionHandler(Exception.class)
-    ResponseEntity<ProblemDetail> unexpected(Exception exception,HttpServletRequest request) {
-        HttpStatus status=exception instanceof org.springframework.web.ErrorResponse framework
+    ResponseEntity<ProblemDetail> unexpected(Exception exception, HttpServletRequest request) {
+        HttpStatus status = exception instanceof org.springframework.web.ErrorResponse framework
                 ? HttpStatus.valueOf(framework.getStatusCode().value()) : HttpStatus.INTERNAL_SERVER_ERROR;
-        return response(problem(status,status.getReasonPhrase(),"The request could not be processed.","urn:task-management:problem:request-error",request));
+        return response(problem(status, status.getReasonPhrase(), "The request could not be processed.", "urn:task-management:problem:request-error", request));
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String detail, String type,
-            HttpServletRequest request) {
+                                  HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setTitle(title);
         problem.setType(URI.create(type));

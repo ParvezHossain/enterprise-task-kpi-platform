@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.UUID;
+
 import com.parvez.task.authorization.TaskActor;
 import com.parvez.task.authorization.TaskRole;
 import org.springframework.security.oauth2.jwt.Jwt;

@@ -2,6 +2,7 @@ package com.parvez.auth.domain;
 
 import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -29,6 +30,11 @@ public class Permission {
         }
     }
 
-    public UUID getId() { return id; }
-    public String getName() { return name; }
+    public UUID getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
 }

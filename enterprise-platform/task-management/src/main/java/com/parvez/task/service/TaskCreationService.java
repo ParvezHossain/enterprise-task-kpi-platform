@@ -9,7 +9,9 @@ import com.parvez.task.persistence.TaskRepository;
 import com.parvez.task.web.CreateTaskRequest;
 import com.parvez.task.web.TaskResponse;
 import com.parvez.task.web.TaskResponseMapper;
+
 import java.util.UUID;
+
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +26,9 @@ public class TaskCreationService {
     private final TaskResponseMapper responseMapper;
 
     public TaskCreationService(jakarta.persistence.EntityManager entityManager, org.springframework.context.ApplicationEventPublisher events, TaskAuthorizationPolicy authorizationPolicy,
-            ProjectRepository projects, TaskRepository tasks, TaskResponseMapper responseMapper) {
-        this.entityManager=entityManager;
-        this.events=events;
+                               ProjectRepository projects, TaskRepository tasks, TaskResponseMapper responseMapper) {
+        this.entityManager = entityManager;
+        this.events = events;
         this.authorizationPolicy = authorizationPolicy;
         this.projects = projects;
         this.tasks = tasks;
@@ -49,10 +51,10 @@ public class TaskCreationService {
             throw new AccessDeniedException("Authenticated subject is not a valid user identifier");
         }
         TaskEntity saved = tasks.save(TaskEntity.draft(request.title(), request.description(),
-            request.priority(), request.teamId(), request.projectId(), creatorId,
-            request.dueDate()));
+                request.priority(), request.teamId(), request.projectId(), creatorId,
+                request.dueDate()));
         entityManager.flush();
-        events.publishEvent(new TaskAuditEvent(saved.getId(),creatorId,"CREATED",null,"DRAFT",java.time.Instant.now()));
+        events.publishEvent(new TaskAuditEvent(saved.getId(), creatorId, "CREATED", null, "DRAFT", java.time.Instant.now()));
         return responseMapper.toResponse(saved);
     }
 }

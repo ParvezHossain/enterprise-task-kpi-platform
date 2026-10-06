@@ -2,6 +2,7 @@ package com.parvez.task.query;
 
 import java.util.List;
 import java.util.UUID;
+
 import com.parvez.task.authorization.TaskAction;
 import com.parvez.task.authorization.TaskActor;
 import com.parvez.task.authorization.TaskAuthorizationPolicy;
@@ -33,8 +34,8 @@ public class TaskQueryService {
     private final TaskQueryProperties properties;
 
     public TaskQueryService(TaskAuthorizationPolicy authorizationPolicy, TaskRepository tasks,
-            TaskAuditLogRepository auditLogs, TaskResponseMapper responseMapper,
-            TaskQueryProperties properties) {
+                            TaskAuditLogRepository auditLogs, TaskResponseMapper responseMapper,
+                            TaskQueryProperties properties) {
         this.authorizationPolicy = authorizationPolicy;
         this.tasks = tasks;
         this.auditLogs = auditLogs;
@@ -110,7 +111,7 @@ public class TaskQueryService {
 
         Sort sort = forcedSort == null
                 ? Sort.by(request.direction() == null ? Sort.Direction.DESC : request.direction(),
-                        (request.sortBy() == null ? TaskSortField.CREATED_AT : request.sortBy()).property())
+                (request.sortBy() == null ? TaskSortField.CREATED_AT : request.sortBy()).property())
                 : forcedSort;
         if (sort.getOrderFor("id") == null) {
             sort = sort.and(Sort.by(Sort.Direction.ASC, "id"));

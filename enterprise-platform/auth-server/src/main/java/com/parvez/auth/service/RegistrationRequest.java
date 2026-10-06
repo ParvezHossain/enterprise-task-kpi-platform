@@ -1,6 +1,7 @@
 package com.parvez.auth.service;
 
 import java.util.Locale;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

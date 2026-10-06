@@ -3,6 +3,7 @@ package com.parvez.auth.security;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+
 import com.parvez.auth.repository.UserRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.User;

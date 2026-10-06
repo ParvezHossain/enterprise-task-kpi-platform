@@ -2,6 +2,7 @@ package com.parvez.task.security;
 
 import java.util.Set;
 import java.util.UUID;
+
 import com.parvez.task.authorization.TaskActor;
 import com.parvez.task.authorization.TaskRole;
 import com.parvez.task.persistence.TeamLeadershipRepository;
@@ -24,8 +25,9 @@ public class CurrentTaskActorProvider {
             return actor;
         }
         try {
-            var managed=teamLeaderships.findManagedTeamIds(UUID.fromString(actor.subject()));
-            if(managed.size()>1000) throw new org.springframework.security.access.AccessDeniedException("Managed-team limit exceeded");
+            var managed = teamLeaderships.findManagedTeamIds(UUID.fromString(actor.subject()));
+            if (managed.size() > 1000)
+                throw new org.springframework.security.access.AccessDeniedException("Managed-team limit exceeded");
             return actorFactory.fromJwt(jwt, managed);
         } catch (IllegalArgumentException exception) {
             return actor;

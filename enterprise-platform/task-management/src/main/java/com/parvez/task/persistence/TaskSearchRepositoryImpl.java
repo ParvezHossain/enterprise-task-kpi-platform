@@ -2,6 +2,7 @@ package com.parvez.task.persistence;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -56,7 +57,7 @@ public class TaskSearchRepositoryImpl implements TaskSearchRepository {
     }
 
     private List<Order> orders(Sort sort, Root<TaskEntity> root,
-            jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder) {
+                               jakarta.persistence.criteria.CriteriaBuilder criteriaBuilder) {
         List<Order> orders = new ArrayList<>();
         boolean idSpecified = false;
         for (Sort.Order order : sort) {

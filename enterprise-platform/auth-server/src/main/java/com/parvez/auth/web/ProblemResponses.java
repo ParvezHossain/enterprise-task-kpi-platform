@@ -1,13 +1,17 @@
 package com.parvez.auth.web;
 
 import java.net.URI;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 
-/** Public errors never include exception messages, rejected values, or stack traces. */
+/**
+ * Public errors never include exception messages, rejected values, or stack traces.
+ */
 public final class ProblemResponses {
-    private ProblemResponses() { }
+    private ProblemResponses() {
+    }
 
     public static ProblemDetail create(int status, String path) {
         HttpStatus known = HttpStatus.resolve(status);

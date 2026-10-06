@@ -3,6 +3,7 @@ package com.parvez.auth.web;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Set;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,11 +16,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 import tools.jackson.databind.ObjectMapper;
 
-/** Covers errors originating outside MVC as well as framework OAuth error writers. */
+/**
+ * Covers errors originating outside MVC as well as framework OAuth error writers.
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class ProblemResponseFilter extends OncePerRequestFilter {
-    private static final Set<String> OAUTH_ERRORS = Set.of("invalid_request", "invalid_client",
+    private static final Set<String> OAUTH_ERRORS = Set.of(
+            "invalid_request", "invalid_client",
             "invalid_grant", "unauthorized_client", "unsupported_grant_type", "invalid_scope",
             "invalid_token", "insufficient_scope", "access_denied", "server_error",
             "temporarily_unavailable", "unsupported_token_type", "invalid_target",
@@ -35,10 +39,17 @@ public class ProblemResponseFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-            FilterChain chain) throws ServletException, IOException {
+                                    FilterChain chain) throws ServletException, IOException {
         var wrapped = new ContentCachingResponseWrapper(response) {
-            @Override public void sendError(int status) { setStatus(status); }
-            @Override public void sendError(int status, String message) { setStatus(status); }
+            @Override
+            public void sendError(int status) {
+                setStatus(status);
+            }
+
+            @Override
+            public void sendError(int status, String message) {
+                setStatus(status);
+            }
         };
         try {
             chain.doFilter(request, wrapped);

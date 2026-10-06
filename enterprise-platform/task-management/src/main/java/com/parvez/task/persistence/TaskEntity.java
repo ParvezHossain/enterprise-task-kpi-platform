@@ -2,9 +2,11 @@ package com.parvez.task.persistence;
 
 import com.parvez.task.domain.TaskStatus;
 import com.parvez.task.domain.TaskPriority;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -73,7 +75,7 @@ public class TaskEntity {
     }
 
     public static TaskEntity draft(String title, String description, TaskPriority priority,
-            UUID teamId, UUID projectId, UUID createdBy, LocalDate dueDate) {
+                                   UUID teamId, UUID projectId, UUID createdBy, LocalDate dueDate) {
         TaskEntity task = new TaskEntity();
         task.title = title;
         task.description = description;
@@ -90,9 +92,9 @@ public class TaskEntity {
 
     public void updateStatus(TaskStatus status, Instant updatedAt) {
         this.status = status;
-        if(status == TaskStatus.IN_PROGRESS) this.startedAt=updatedAt;
-        if(status == TaskStatus.COMPLETED) this.completedAt=updatedAt;
-        if(status == TaskStatus.CLOSED) this.closedAt=updatedAt;
+        if (status == TaskStatus.IN_PROGRESS) this.startedAt = updatedAt;
+        if (status == TaskStatus.COMPLETED) this.completedAt = updatedAt;
+        if (status == TaskStatus.CLOSED) this.closedAt = updatedAt;
         this.updatedAt = updatedAt;
     }
 

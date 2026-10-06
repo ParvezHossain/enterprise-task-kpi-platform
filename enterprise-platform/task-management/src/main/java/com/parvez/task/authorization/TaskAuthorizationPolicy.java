@@ -2,6 +2,7 @@ package com.parvez.task.authorization;
 
 import java.util.Map;
 import java.util.Set;
+
 import com.parvez.task.domain.TaskStatus;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +34,7 @@ public final class TaskAuthorizationPolicy {
                     TaskAction.COMPLETE_TASK));
 
     public boolean allows(TaskActor actor, TaskAction action, TaskAuthorizationTarget target) {
-                if (!canAttempt(actor, action)) {
+        if (!canAttempt(actor, action)) {
             return false;
         }
 
@@ -50,27 +51,27 @@ public final class TaskAuthorizationPolicy {
         };
     }
 
-        public boolean canAttempt(TaskActor actor, TaskAction action) {
-                return actor != null && action != null
-                                && actor.roles().stream().anyMatch(role -> ROLE_ACTIONS.get(role).contains(action));
-        }
+    public boolean canAttempt(TaskActor actor, TaskAction action) {
+        return actor != null && action != null
+                && actor.roles().stream().anyMatch(role -> ROLE_ACTIONS.get(role).contains(action));
+    }
 
-        public boolean shouldConcealEmployeeTask(TaskActor actor, TaskAuthorizationTarget target) {
-                return actor != null && actor.roles().contains(TaskRole.EMPLOYEE)
-                                && target != null && (target.assignedTo() == null
-                                || !actor.subject().equals(target.assignedTo().toString()));
-        }
+    public boolean shouldConcealEmployeeTask(TaskActor actor, TaskAuthorizationTarget target) {
+        return actor != null && actor.roles().contains(TaskRole.EMPLOYEE)
+                && target != null && (target.assignedTo() == null
+                || !actor.subject().equals(target.assignedTo().toString()));
+    }
 
     private boolean isAssignedToActor(TaskActor actor, TaskAuthorizationTarget target) {
         return target != null && target.assignedTo() != null
                 && actor.subject().equals(target.assignedTo().toString());
     }
 
-        public boolean canReadTask(TaskActor actor, TaskAuthorizationTarget target) {
-                return allows(actor, TaskAction.READ_ALL_TASKS, null)
-                                || allows(actor, TaskAction.READ_OWN_TASKS, target)
-                                || allows(actor, TaskAction.READ_TEAM_TASKS, target);
-        }
+    public boolean canReadTask(TaskActor actor, TaskAuthorizationTarget target) {
+        return allows(actor, TaskAction.READ_ALL_TASKS, null)
+                || allows(actor, TaskAction.READ_OWN_TASKS, target)
+                || allows(actor, TaskAction.READ_TEAM_TASKS, target);
+    }
 
     private boolean canReadTeam(TaskActor actor, TaskAuthorizationTarget target) {
         if (target == null || target.teamId() == null) {

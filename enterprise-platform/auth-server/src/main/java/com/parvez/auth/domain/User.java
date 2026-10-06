@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -47,7 +48,9 @@ public class User {
     protected User() {
     }
 
-    /** Accepts an already encoded password; password encoding belongs to the user service. */
+    /**
+     * Accepts an already encoded password; password encoding belongs to the user service.
+     */
     public User(String email, String passwordHash) {
         this.email = Objects.requireNonNull(email).strip().toLowerCase(Locale.ROOT);
         this.passwordHash = Objects.requireNonNull(passwordHash);
@@ -59,11 +62,31 @@ public class User {
         }
     }
 
-    public UUID getId() { return id; }
-    public String getEmail() { return email; }
-    public String getPasswordHash() { return passwordHash; }
-    public boolean isEnabled() { return enabled; }
-    public long getVersion() { return version; }
-    public Set<Role> getRoles() { return Collections.unmodifiableSet(roles); }
-    public void assignRole(Role role) { roles.add(Objects.requireNonNull(role)); }
+    public UUID getId() {
+        return id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public Set<Role> getRoles() {
+        return Collections.unmodifiableSet(roles);
+    }
+
+    public void assignRole(Role role) {
+        roles.add(Objects.requireNonNull(role));
+    }
 }

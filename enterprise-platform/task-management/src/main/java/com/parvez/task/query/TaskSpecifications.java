@@ -1,6 +1,7 @@
 package com.parvez.task.query;
 
 import java.util.UUID;
+
 import com.parvez.task.domain.TaskPriority;
 import com.parvez.task.domain.TaskStatus;
 import com.parvez.task.persistence.TaskEntity;
@@ -44,9 +45,9 @@ public final class TaskSpecifications {
             specification = specification.and((root, query, builder) ->
                     builder.lessThanOrEqualTo(root.get("createdAt"), request.createdTo()));
         }
-        if(request.title()!=null&&!request.title().isBlank()) {
-            String pattern="%"+request.title().toLowerCase(java.util.Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%";
-            specification=specification.and((root,query,builder)->builder.like(builder.lower(root.get("title")),pattern,'!'));
+        if (request.title() != null && !request.title().isBlank()) {
+            String pattern = "%" + request.title().toLowerCase(java.util.Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+            specification = specification.and((root, query, builder) -> builder.like(builder.lower(root.get("title")), pattern, '!'));
         }
         return specification;
     }

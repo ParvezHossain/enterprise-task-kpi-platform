@@ -1,6 +1,7 @@
 package com.parvez.task.web;
 
 import java.util.UUID;
+
 import com.parvez.task.query.TaskHistoryPageResponse;
 import com.parvez.task.query.TaskPageResponse;
 import com.parvez.task.query.TaskQueryService;
@@ -28,32 +29,32 @@ public class TaskQueryController {
 
     @GetMapping
     TaskPageResponse all(@AuthenticationPrincipal Jwt jwt,
-            @Valid @ModelAttribute TaskSearchRequest request) {
+                         @Valid @ModelAttribute TaskSearchRequest request) {
         return queryService.all(actorProvider.fromJwt(jwt), request);
     }
 
     @GetMapping("/me")
     TaskPageResponse mine(@AuthenticationPrincipal Jwt jwt,
-            @Valid @ModelAttribute TaskSearchRequest request) {
+                          @Valid @ModelAttribute TaskSearchRequest request) {
         return queryService.mine(actorProvider.fromJwt(jwt), request);
     }
 
     @GetMapping("/team")
     TaskPageResponse team(@AuthenticationPrincipal Jwt jwt,
-            @Valid @ModelAttribute TaskSearchRequest request) {
+                          @Valid @ModelAttribute TaskSearchRequest request) {
         return queryService.team(actorProvider.fromJwt(jwt), request);
     }
 
     @GetMapping("/{taskId}/history")
     TaskHistoryPageResponse history(@PathVariable UUID taskId,
-            @AuthenticationPrincipal Jwt jwt,
-            @Valid @ModelAttribute TaskSearchRequest request) {
+                                    @AuthenticationPrincipal Jwt jwt,
+                                    @Valid @ModelAttribute TaskSearchRequest request) {
         return queryService.history(actorProvider.fromJwt(jwt), taskId, request);
     }
 
     @GetMapping("/{taskId}")
     TaskResponse find(@PathVariable UUID taskId,
-            @AuthenticationPrincipal Jwt jwt) {
+                      @AuthenticationPrincipal Jwt jwt) {
         return queryService.find(actorProvider.fromJwt(jwt), taskId);
     }
 }

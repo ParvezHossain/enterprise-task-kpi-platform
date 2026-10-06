@@ -1,6 +1,7 @@
 package com.parvez.task.web;
 
 import java.net.URI;
+
 import com.parvez.task.security.CurrentTaskActorProvider;
 import com.parvez.task.service.TaskCreationService;
 import jakarta.validation.Valid;
@@ -25,7 +26,7 @@ public class TaskController {
 
     @PostMapping
     ResponseEntity<TaskResponse> createTask(@AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody CreateTaskRequest request) {
+                                            @Valid @RequestBody CreateTaskRequest request) {
         TaskResponse response = taskCreationService.create(actorProvider.fromJwt(jwt), request);
         return ResponseEntity.created(URI.create("/api/v1/tasks/" + response.id())).body(response);
     }

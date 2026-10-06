@@ -4,7 +4,9 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Minimal authenticated landing page; credentials and identity records never enter the view. */
+/**
+ * Minimal authenticated landing page; credentials and identity records never enter the view.
+ */
 @RestController
 public class AccountController {
     @GetMapping(value = "/account", produces = MediaType.TEXT_HTML_VALUE)

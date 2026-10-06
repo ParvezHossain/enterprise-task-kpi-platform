@@ -66,7 +66,7 @@ AUTH_RSA_KEY_ID=container-smoke
             run("docker", "run", "-d", "--rm", "--name", database, "--network", network,
                 "--network-alias", "postgres", "--env-file", str(pg_env), "postgres:18.6-alpine")
             wait_for("PostgreSQL", lambda: run("docker", "exec", database, "pg_isready",
-                                              "-h", "127.0.0.1", "-U", "postgres", check=False).returncode == 0)
+                                               "-h", "127.0.0.1", "-U", "postgres", check=False).returncode == 0)
             run("docker", "exec", "-i", database, "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1",
                 input=f"""CREATE ROLE auth_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '{migrator}';
 CREATE ROLE auth_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '{runtime}';
@@ -86,7 +86,7 @@ GRANT USAGE ON SCHEMA public TO auth_app;
             assert run("docker", "exec", application, "id", "-u").stdout.strip() == "10001"
             run("docker", "exec", application, "sh", "-c", "! command -v javac && ! command -v mvn")
             port = json.loads(run("docker", "inspect", "--format",
-                                 "{{json .NetworkSettings.Ports}}", application).stdout)["9000/tcp"][0]["HostPort"]
+                                  "{{json .NetworkSettings.Ports}}", application).stdout)["9000/tcp"][0]["HostPort"]
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/actuator/health", timeout=10) as response:
                 assert response.status == 200
                 assert json.load(response)["status"] == "UP"
@@ -94,7 +94,8 @@ GRANT USAGE ON SCHEMA public TO auth_app;
                         "SELECT tableowner FROM pg_tables WHERE schemaname='public' "
                         "AND tablename='flyway_schema_history' LIMIT 1").stdout.strip()
             assert owner == "auth_migrator"
-            print("PASS: Docker healthy; HTTP 200/UP; UID 10001; JRE-only; read-only root; Flyway owned by auth_migrator.")
+            print(
+                "PASS: Docker healthy; HTTP 200/UP; UID 10001; JRE-only; read-only root; Flyway owned by auth_migrator.")
         finally:
             for name in (application, database):
                 run("docker", "rm", "-f", name, check=False)

@@ -2,6 +2,7 @@ package com.parvez.auth.config;
 
 import java.util.ArrayList;
 import java.util.UUID;
+
 import com.parvez.auth.security.IdentityAuthenticationService;
 import com.parvez.auth.security.ConsentEnforcingRegisteredClientRepository;
 import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
@@ -66,9 +67,10 @@ public class AuthorizationServerConfig {
     @Bean
     OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer(IdentityAuthenticationService identities) {
         return context -> {
-            if(org.springframework.security.oauth2.core.AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
-                if(!"kpi-sync".equals(context.getRegisteredClient().getClientId()) || !context.getAuthorizedScopes().equals(java.util.Set.of("task.metrics.read"))) throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_SCOPE);
-                context.getClaims().subject("kpi-sync").audience(java.util.List.of("task-management")).claim("roles",new ArrayList<String>());
+            if (org.springframework.security.oauth2.core.AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
+                if (!"kpi-sync".equals(context.getRegisteredClient().getClientId()) || !context.getAuthorizedScopes().equals(java.util.Set.of("task.metrics.read")))
+                    throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_SCOPE);
+                context.getClaims().subject("kpi-sync").audience(java.util.List.of("task-management")).claim("roles", new ArrayList<String>());
                 return;
             }
 
@@ -86,7 +88,8 @@ public class AuthorizationServerConfig {
                 context.getClaims().claim("roles", new ArrayList<>(identity.roles()))
                         .claim("authorities", new ArrayList<>(identity.authorities()));
                 var audiences = new ArrayList<String>();
-                if (context.getAuthorizedScopes().stream().anyMatch(scope -> scope.startsWith("task."))) audiences.add("task-management");
+                if (context.getAuthorizedScopes().stream().anyMatch(scope -> scope.startsWith("task.")))
+                    audiences.add("task-management");
                 if (context.getAuthorizedScopes().contains("kpi.read")) audiences.add("kpi-service");
                 context.getClaims().audience(audiences);
             } else if (OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())
