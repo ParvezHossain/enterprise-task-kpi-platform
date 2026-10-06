@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TaskCommandService {
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final TaskAuthorizationPolicy authorizationPolicy;
     private final TaskRepository tasks;
     private final TeamMembershipRepository memberships;
@@ -29,9 +30,10 @@ public class TaskCommandService {
     private final TaskResponseMapper responseMapper;
     private final EntityManager entityManager;
 
-    public TaskCommandService(TaskAuthorizationPolicy authorizationPolicy, TaskRepository tasks,
+    public TaskCommandService(org.springframework.context.ApplicationEventPublisher events, TaskAuthorizationPolicy authorizationPolicy, TaskRepository tasks,
             TeamMembershipRepository memberships, TaskStateMachine stateMachine,
             TaskResponseMapper responseMapper, EntityManager entityManager) {
+        this.events=events;
         this.authorizationPolicy = authorizationPolicy;
         this.tasks = tasks;
         this.memberships = memberships;
@@ -48,8 +50,10 @@ public class TaskCommandService {
         }
         verifyVersion(task, expectedVersion);
         TaskStatus approved = stateMachine.transition(task.getStatus(), TaskStatus.APPROVED);
+        TaskStatus previous=task.getStatus();
         task.updateStatus(approved, Instant.now());
         flush(task);
+        events.publishEvent(new TaskAuditEvent(task.getId(),UUID.fromString(actor.subject()),"APPROVED",previous.name(),task.getStatus().name(),Instant.now()));
         return responseMapper.toResponse(task);
     }
 
@@ -69,6 +73,7 @@ public class TaskCommandService {
 
         task.assignTo(employeeId, Instant.now());
         flush(task);
+        events.publishEvent(new TaskAuditEvent(task.getId(),UUID.fromString(actor.subject()),"ASSIGNED",task.getStatus().name(),task.getStatus().name(),Instant.now()));
         return responseMapper.toResponse(task);
     }
 
@@ -95,8 +100,10 @@ public class TaskCommandService {
             throw new AccessDeniedException("Not permitted to update this task");
         }
 
+        TaskStatus previous=task.getStatus();
         task.updateStatus(nextStatus, Instant.now());
         flush(task);
+        events.publishEvent(new TaskAuditEvent(task.getId(),UUID.fromString(actor.subject()),requestedStatus == TaskStatus.IN_PROGRESS ? "STARTED" : "COMPLETED",previous.name(),task.getStatus().name(),Instant.now()));
         return responseMapper.toResponse(task);
     }
 
@@ -116,8 +123,10 @@ public class TaskCommandService {
             throw new AccessDeniedException("Not permitted to close this task");
         }
 
+        TaskStatus previous=task.getStatus();
         task.updateStatus(closed, Instant.now());
         flush(task);
+        events.publishEvent(new TaskAuditEvent(task.getId(),UUID.fromString(actor.subject()),"CLOSED",previous.name(),task.getStatus().name(),Instant.now()));
         return responseMapper.toResponse(task);
     }
 

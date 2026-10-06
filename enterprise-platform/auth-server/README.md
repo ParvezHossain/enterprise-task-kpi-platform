@@ -105,7 +105,7 @@ java -jar target/auth-server-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
 
 For containers, export the same credentials and set `SPRING_PROFILES_ACTIVE=docker`.
 The docker profile expects database DNS name `postgres` on its container network.
-The platform Compose file remains a placeholder; use the standalone image below. Never commit the populated `.env` file.
+The platform Compose file now runs the complete stack; see [development](../../docs/development.md#complete-local-platform). The standalone image remains available. Keep populated environment files private.
 
 ## Observability
 
@@ -187,3 +187,20 @@ and becomes unhealthy after three failures. The probe uses AUTH_SERVER_PORT
 Health includes database connectivity. Keep the management path and port at
 their defaults or override the Docker health check accordingly. Application logs
 are JSON on stdout. `docker stop auth-server` sends SIGTERM directly to Java.
+
+
+## Additional hardening and platform setup
+Identity V3 adds database-managed audit timestamps. Auth applies CSP/Referrer-Policy
+and a configurable login limiter (20 submissions per address/60 seconds by default,
+10,000 live addresses). Limits are local to an instance; use a shared limiter for
+horizontal deployments. HSTS remains conditional on TLS.
+
+AUTH_KPI_SYNC_SECRET_HASH explicitly provisions the confidential kpi-sync client
+through the Flyway migration connection. Runtime registered-client access stays
+read-only. Its client-credentials tokens contain a Task audience, task.metrics.read
+and no human roles.
+
+The development material utility now also generates private stack.env, six local
+users, team/project/task seed SQL and users.json. Follow
+[complete setup](../../docs/development.md#complete-local-platform) rather than
+manually assembling the full Compose environment.

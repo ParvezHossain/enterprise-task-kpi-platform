@@ -1,0 +1,18 @@
+{
+  "name": "enterprise-platform-ui",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tailwindcss -i shared/source.css -o shared/style.css --minify && node build.mjs",
+    "test": "playwright test",
+    "test:e2e": "E2E_REAL=true playwright test tests/workflow.spec.js"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "tailwindcss": "4.3.3",
+    "chart.js": "4.5.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

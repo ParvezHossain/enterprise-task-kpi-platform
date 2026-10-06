@@ -1,0 +1,72 @@
+### Use generated developer users to obtain tokens via requests/auth.http.
+@taskBase = http://localhost:8082
+@kpiBase = http://localhost:8083
+@taskToken = replace-with-your-task-audience-token
+@kpiToken = replace-with-your-kpi-audience-token
+@taskId = replace-with-task-uuid
+@teamId = replace-with-team-uuid
+@projectId = replace-with-project-uuid
+@employeeId = replace-with-user-uuid
+@commandKey = {{$uuid}}
+
+### Create (Admin/PM)
+POST {{taskBase}}/api/v1/tasks
+Authorization: Bearer {{taskToken}}
+Content-Type: application/json
+X-Request-ID: {{$uuid}}
+
+{"title":"Release review","description":"Review acceptance results","priority":"HIGH","teamId":"{{teamId}}","projectId":"{{projectId}}"}
+
+### Approve (Team Leader/Admin): resend unchanged with the same key to replay.
+POST {{taskBase}}/api/v1/tasks/{{taskId}}/approve
+Authorization: Bearer {{taskToken}}
+Idempotency-Key: {{commandKey}}
+Content-Type: application/json
+
+{"version":0}
+
+### Assign (use a new stable key for this command)
+POST {{taskBase}}/api/v1/tasks/{{taskId}}/assign
+Authorization: Bearer {{taskToken}}
+Idempotency-Key: {{$uuid}}
+Content-Type: application/json
+
+{"version":1,"employeeId":"{{employeeId}}"}
+
+### Start as the assigned employee
+PATCH {{taskBase}}/api/v1/tasks/{{taskId}}/status
+Authorization: Bearer {{taskToken}}
+Content-Type: application/json
+
+{"version":2,"status":"IN_PROGRESS"}
+
+### Complete as the assigned employee
+PATCH {{taskBase}}/api/v1/tasks/{{taskId}}/status
+Authorization: Bearer {{taskToken}}
+Content-Type: application/json
+
+{"version":3,"status":"COMPLETED"}
+
+### Close (PM/Admin)
+POST {{taskBase}}/api/v1/tasks/{{taskId}}/close
+Authorization: Bearer {{taskToken}}
+Idempotency-Key: {{$uuid}}
+Content-Type: application/json
+
+{"version":4}
+
+### Scoped history
+GET {{taskBase}}/api/v1/tasks/{{taskId}}/history?page=0&size=20
+Authorization: Bearer {{taskToken}}
+
+### My KPI, after a successful scheduled refresh
+GET {{kpiBase}}/api/v1/kpis/me
+Authorization: Bearer {{kpiToken}}
+
+### Authorized team ranking
+GET {{kpiBase}}/api/v1/kpis/ranking?teamId={{teamId}}&page=0&size=20
+Authorization: Bearer {{kpiToken}}
+
+### My monthly trends
+GET {{kpiBase}}/api/v1/kpis/trends?scope=me
+Authorization: Bearer {{kpiToken}}

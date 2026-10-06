@@ -19,23 +19,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskCommandController {
     private final CurrentTaskActorProvider actorProvider;
     private final TaskCommandService commands;
+    private final com.parvez.task.service.IdempotentTaskCommands idempotent;
 
-    public TaskCommandController(CurrentTaskActorProvider actorProvider, TaskCommandService commands) {
+    public TaskCommandController(CurrentTaskActorProvider actorProvider, TaskCommandService commands, com.parvez.task.service.IdempotentTaskCommands idempotent) {
         this.actorProvider = actorProvider;
         this.commands = commands;
+        this.idempotent=idempotent;
     }
 
     @PostMapping("/approve")
     ResponseEntity<TaskResponse> approve(@PathVariable UUID taskId, @AuthenticationPrincipal Jwt jwt,
+            @org.springframework.web.bind.annotation.RequestHeader(value="Idempotency-Key",required=false) String key,
             @Valid @RequestBody TaskVersionRequest request) {
-        return ResponseEntity.ok(commands.approve(actorProvider.fromJwt(jwt), taskId, request.version()));
+        return ResponseEntity.ok(idempotent.execute(jwt,taskId,"approve",key,request.version(),null));
     }
 
     @PostMapping("/assign")
     ResponseEntity<TaskResponse> assign(@PathVariable UUID taskId, @AuthenticationPrincipal Jwt jwt,
+            @org.springframework.web.bind.annotation.RequestHeader(value="Idempotency-Key",required=false) String key,
             @Valid @RequestBody TaskAssignmentRequest request) {
-        return ResponseEntity.ok(commands.assign(actorProvider.fromJwt(jwt), taskId,
-                request.employeeId(), request.version()));
+        return ResponseEntity.ok(idempotent.execute(jwt,taskId,"assign",key,request.version(),request.employeeId()));
     }
 
     @PatchMapping("/status")
@@ -47,7 +50,8 @@ public class TaskCommandController {
 
     @PostMapping("/close")
     ResponseEntity<TaskResponse> close(@PathVariable UUID taskId, @AuthenticationPrincipal Jwt jwt,
+            @org.springframework.web.bind.annotation.RequestHeader(value="Idempotency-Key",required=false) String key,
             @Valid @RequestBody TaskVersionRequest request) {
-        return ResponseEntity.ok(commands.close(actorProvider.fromJwt(jwt), taskId, request.version()));
+        return ResponseEntity.ok(idempotent.execute(jwt,taskId,"close",key,request.version(),null));
     }
 }

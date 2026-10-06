@@ -15,14 +15,14 @@ documentation; `enterprise-platform/docs/README.md` links here.
 All three are independent, parent-less Maven JAR projects targeting Java 25.
 There is no shared parent or aggregator. TICKET-0101 adds the auth-server
 application; TICKET-0201 bootstraps Task as a PostgreSQL-backed OAuth2 resource
-server. KPI remains an empty skeleton.
+server. KPI is a JWT resource server with a PostgreSQL metric read model.
 See [ADR 0001](decisions/0001-independent-service-skeletons.md).
 
 ## Core decisions (TICKET-0002)
 
 Status: Accepted design for subsequent implementation tickets. Verified against
 live official documentation on 2026-09-09. TICKET-0002 documented the decisions;
-TICKET-0101 applies the auth-server baseline. Compose remains a placeholder. The repository contract now
+TICKET-0101 applies the auth-server baseline. Compose now runs all services and frontends. The repository contract now
 uses Boot-managed JUnit 6, as approved by the user.
 
 | Decision | Chosen | Alternatives considered | Why |
@@ -123,7 +123,7 @@ Include lifecycle timestamps/history fields needed by the agreed KPI semantics;
 Task descriptions and other unnecessary personal data do not belong in the feed.
 DTOs are explicit API contracts, never serialized JPA entities.
 
-TICKET-0302 will add a dedicated internal read endpoint to Task and a `RestClient`
+TICKET-0302 adds a dedicated internal read endpoint to Task and a `RestClient`
 adapter in KPI. Authenticate KPI with a confidential client-credentials client,
 a Task-audience token, and a narrowly scoped `task.metrics.read` permission.
 This machine identity cannot mutate tasks. The feed is not accessible to browser
@@ -388,3 +388,48 @@ Task pages use an allowlisted sort and UUID tie-breaker; audit pages use event t
 and UUID. Creator identity is stored by additive Flyway V3; legacy creators remain
 unknown. No dependencies or stack versions change. See
 [ADR 0017](decisions/0017-task-query-boundaries.md).
+
+
+## Implemented platform decisions
+| Area | Decision and rationale |
+| --- | --- |
+| Architecture | Three independent Spring Boot services; no shared database access. |
+| Auth responsibility | Identity, passwords, OAuth/OIDC issuance and configured clients. |
+| Task responsibility | Authoritative teams/projects, assignments, lifecycle and audit. |
+| KPI responsibility | Derived projection, SQL aggregates and scoped performance reporting. |
+| Frontend | Plain HTML/JavaScript, shared Tailwind and locally served Chart.js. |
+| Browser authentication | Confidential BFF/PKCE, HttpOnly sessions, server-side refresh tokens. |
+| JWT strategy | External RSA keys; signature, issuer, timestamps and audience validation. |
+| DTO/REST conventions | Explicit records, versioned paths, bounded pages, RFC 9457 errors. |
+| Optimistic locking/idempotency | Hibernate versions and durable command keys; 409 conflicts. |
+| Audit | Transactional events and database-enforced runtime immutability. |
+| Observability | Actuator/Micrometer, JSON logs, request IDs; no credential logging. |
+| Testing | JUnit 6/Mockito/Testcontainers and real Compose/Playwright workflows. |
+| Database/Flyway | Three databases, separate runtime/migration roles, schema validation. |
+| Docker/Compose | Non-root images, pinned digests and health-ordered startup. |
+| KPI integration/caching | Bounded complete-generation REST pull; caching deferred. |
+
+See [ADR 0018](decisions/0018-atomic-task-commands.md),
+[ADR 0019](decisions/0019-kpi-read-model.md),
+[ADR 0020](decisions/0020-browser-sessions-and-compose.md) and
+[ADR 0021](decisions/0021-login-abuse-and-headers.md).
+
+Versions checked on 2026-10-05 retain Java 25, Boot 4.1.1 and springdoc 3.1.1.
+The [Boot coordinates](https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html)
+and [springdoc matrix](https://springdoc.org/#what-is-the-compatibility-matrix-of-springdoc-openapi-with-spring-boot)
+govern compatibility. OAuth client support uses the same BOM. Resolved JUnit
+Jupiter/Platform remain 6.0.3; dependency-tree checks verify alignment.
+
+npm pins: Tailwind/CLI 4.3.3, Chart.js 4.5.1, Playwright 1.63.0.
+Use the [Tailwind v4 CLI documentation](https://tailwindcss.com/docs/installation/tailwind-cli)
+and [Chart.js documentation](https://www.chartjs.org/docs/latest/).
+[Node 24 is LTS](https://nodejs.org/en/about/previous-releases);
+[Nginx 1.30.5 is stable](https://nginx.org/en/download.html).
+Node/Nginx and PostgreSQL 18.6 images use resolved digests.
+Framework 7/Jackson 3 APIs are used without legacy mapper overrides.
+
+Security 7.1's Authorization Server emits the access-token scope claim as an array.
+The Task machine feed accepts either the array form or the OAuth space-delimited
+string form. Real token/feed integration tests prevent assuming the older string
+shape. Managed-team lookups are capped at 1,001 rows and reject actors managing
+more than the supported 1,000-team limit, keeping authorization queries bounded.

@@ -1,0 +1,85 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const root = path.resolve(__dirname, '../../..');
+let users;
+test.beforeAll(() => {
+  fs.copyFileSync(path.join(root, 'enterprise-platform/auth-server/target/auth-server-0.0.1-SNAPSHOT.jar'), path.join(root, '.local/workflow-auth.jar'));
+  fs.chmodSync(path.join(root, '.local/workflow-auth.jar'), 0o600);
+});
+test.beforeEach(() => {
+  const fixture = path.join(root, '.local/e2e', crypto.randomUUID());
+  fs.mkdirSync(fixture, { recursive: true, mode: 0o700 });
+  execFileSync('unzip', ['-q', '-o', '.local/workflow-auth.jar', 'BOOT-INF/lib/*', '-d', path.join(fixture, 'libraries')], { cwd: root, stdio: 'pipe' });
+  execFileSync('java', ['--class-path', path.join(fixture, 'libraries/BOOT-INF/lib/*'), 'scripts/com/parvez/tools/PrepareWorkflowUsers.java', fixture], { cwd: root, stdio: 'pipe' });
+  execFileSync('python3', ['scripts/seed-local.py', '--seed-directory', fixture], { cwd: root, stdio: 'pipe' });
+  users = JSON.parse(fs.readFileSync(path.join(fixture, 'users.json'), 'utf8'));
+});
+async function login(browser, user, port) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto('http://127.0.0.1:' + port + '/');
+  await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+  await page.locator('input[name="username"]').fill(user.email);
+  await page.locator('input[name="password"]').fill(user.password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+  return { context, page };
+}
+test('real OAuth, task lifecycle, immutable history, KPI sync and CSRF workflow', async ({ browser }) => {
+  const sessions = [];
+  try {
+    const pm = await login(browser, users.manager, 8080); sessions.push(pm);
+    await pm.page.goto('http://127.0.0.1:8080/#create');
+    const title = 'E2E delivery ' + crypto.randomUUID();
+    await pm.page.getByLabel('Title', { exact: true }).fill(title);
+    await pm.page.getByLabel('Team', { exact: true }).selectOption(users.teamId);
+    await expect(pm.page.getByLabel('Project', { exact: true }).locator('option')).toHaveAttribute('value', users.projectId);
+    await pm.page.getByLabel('Project', { exact: true }).selectOption(users.projectId);
+    const createResponse = pm.page.waitForResponse(response => response.url().endsWith('/bff/api/v1/tasks') && response.request().method() === 'POST');
+    await pm.page.getByRole('button', { name: 'Create draft' }).click();
+    const created = await createResponse;
+    expect(created.status()).toBe(201);
+    fs.writeFileSync(path.join(root, '.local/last-workflow.json'), JSON.stringify({ requestId: created.headers()['x-request-id'] }), { mode: 0o600 });
+    await expect(pm.page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    const hash = new URL(pm.page.url()).hash;
+    const leader = await login(browser, users.leader, 8080); sessions.push(leader);
+    await leader.page.goto('http://127.0.0.1:8080/' + hash);
+    await leader.page.getByRole('button', { name: 'Approve', exact: true }).click();
+    await expect(leader.page.getByRole('button', { name: 'Assign', exact: true })).toBeVisible();
+    await leader.page.getByLabel('Assign to team member').selectOption(users.employee.subject);
+    await leader.page.getByRole('button', { name: 'Assign', exact: true }).click();
+    await expect(leader.page.getByText('Task updated', { exact: true })).toBeVisible();
+    const employee = await login(browser, users.employee, 8080); sessions.push(employee);
+    const kpi = await login(browser, users.employee, 8081); sessions.push(kpi);
+    const readKpi = () => kpi.page.evaluate(async () => { const response = await fetch('/bff/api/v1/kpis/me'); return { status: response.status, body: await response.json() }; });
+    await expect.poll(async () => (await readKpi()).status, { timeout: 90000, intervals: [1000, 2000, 5000] }).toBe(200);
+    const before = (await readKpi()).body.data.counts.completed;
+    await employee.page.goto('http://127.0.0.1:8080/' + hash);
+    await employee.page.getByRole('button', { name: 'Start task', exact: true }).click();
+    await expect(employee.page.getByRole('button', { name: 'Complete task', exact: true })).toBeVisible();
+    await employee.page.getByRole('button', { name: 'Complete task', exact: true }).click();
+    await expect(employee.page.getByText('COMPLETED', { exact: true }).first()).toBeVisible();
+    await pm.page.goto('http://127.0.0.1:8080/' + hash);
+    await pm.page.reload();
+    await pm.page.getByRole('button', { name: 'Close task', exact: true }).click();
+    await expect(pm.page.getByText('CLOSED', { exact: true }).first()).toBeVisible();
+    await expect(pm.page.locator('#history')).toContainText('CREATED');
+    await expect(pm.page.locator('#history')).toContainText('APPROVED');
+    await expect(pm.page.locator('#history')).toContainText('ASSIGNED');
+    await expect(pm.page.locator('#history')).toContainText('STARTED');
+    await expect(pm.page.locator('#history')).toContainText('COMPLETED');
+    await expect(pm.page.locator('#history')).toContainText('CLOSED');
+    await expect.poll(async () => (await readKpi()).body.data?.counts.completed, { timeout: 90000, intervals: [1000, 2000, 5000] }).toBe(before + 1);
+    await kpi.page.reload();
+    await expect(kpi.page.locator('canvas')).toHaveCount(3);
+    await expect(kpi.page.getByRole('alert')).toHaveCount(0);
+    await expect(kpi.page.getByText('Completed', { exact: true }).locator('..')).toContainText(String(before + 1));
+    const unsafe = await employee.page.evaluate(async () => (await fetch('/bff/api/v1/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status);
+    expect(unsafe).toBe(403);
+    expect(await employee.page.evaluate(() => localStorage.length)).toBe(0);
+    await employee.page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await expect(employee.page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible();
+  } finally { for (const session of sessions) await session.context.close(); }
+});

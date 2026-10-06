@@ -16,13 +16,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TaskCreationService {
+    private final jakarta.persistence.EntityManager entityManager;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final TaskAuthorizationPolicy authorizationPolicy;
     private final ProjectRepository projects;
     private final TaskRepository tasks;
     private final TaskResponseMapper responseMapper;
 
-    public TaskCreationService(TaskAuthorizationPolicy authorizationPolicy,
+    public TaskCreationService(jakarta.persistence.EntityManager entityManager, org.springframework.context.ApplicationEventPublisher events, TaskAuthorizationPolicy authorizationPolicy,
             ProjectRepository projects, TaskRepository tasks, TaskResponseMapper responseMapper) {
+        this.entityManager=entityManager;
+        this.events=events;
         this.authorizationPolicy = authorizationPolicy;
         this.projects = projects;
         this.tasks = tasks;
@@ -47,6 +51,8 @@ public class TaskCreationService {
         TaskEntity saved = tasks.save(TaskEntity.draft(request.title(), request.description(),
             request.priority(), request.teamId(), request.projectId(), creatorId,
             request.dueDate()));
+        entityManager.flush();
+        events.publishEvent(new TaskAuditEvent(saved.getId(),creatorId,"CREATED",null,"DRAFT",java.time.Instant.now()));
         return responseMapper.toResponse(saved);
     }
 }

@@ -90,6 +90,9 @@ public class TaskEntity {
 
     public void updateStatus(TaskStatus status, Instant updatedAt) {
         this.status = status;
+        if(status == TaskStatus.IN_PROGRESS) this.startedAt=updatedAt;
+        if(status == TaskStatus.COMPLETED) this.completedAt=updatedAt;
+        if(status == TaskStatus.CLOSED) this.closedAt=updatedAt;
         this.updatedAt = updatedAt;
     }
 

@@ -47,7 +47,7 @@ public class TaskApiExceptionHandler {
     }
 
     @ExceptionHandler({InvalidTaskQueryException.class, BindException.class,
-            MethodArgumentTypeMismatchException.class})
+            MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
     ResponseEntity<ProblemDetail> invalidQuery(Exception exception, HttpServletRequest request) {
         return response(problem(HttpStatus.BAD_REQUEST, "Invalid query", "The query parameters are invalid.",
                 "urn:task-management:problem:invalid-query", request));
@@ -62,14 +62,16 @@ public class TaskApiExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> forbidden(AccessDeniedException exception, HttpServletRequest request) {
-        return response(problem(HttpStatus.FORBIDDEN, "Forbidden", "The authenticated user cannot create this task.",
+        return response(problem(HttpStatus.FORBIDDEN, "Forbidden", "The authenticated user cannot perform this operation.",
                 "urn:task-management:problem:forbidden", request));
     }
 
     @ExceptionHandler({TaskVersionConflictException.class, InvalidTaskTransitionException.class,
             ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
     ResponseEntity<ProblemDetail> conflict(RuntimeException exception, HttpServletRequest request) {
-        return response(problem(HttpStatus.CONFLICT, "Task conflict", exception.getMessage(),
+        return response(problem(HttpStatus.CONFLICT, "Task conflict",
+                exception instanceof TaskVersionConflictException || exception instanceof InvalidTaskTransitionException
+                    ? exception.getMessage() : "The task changed while the request was being processed.",
                 "urn:task-management:problem:conflict", request));
     }
 
@@ -77,6 +79,25 @@ public class TaskApiExceptionHandler {
     ResponseEntity<ProblemDetail> notFound(TaskNotFoundException exception, HttpServletRequest request) {
         return response(problem(HttpStatus.NOT_FOUND, "Task not found", "The requested task does not exist.",
                 "urn:task-management:problem:not-found", request));
+    }
+
+    @ExceptionHandler(com.parvez.task.service.IdempotencyException.class)
+    ResponseEntity<ProblemDetail> idempotency(com.parvez.task.service.IdempotencyException exception,HttpServletRequest request) {
+        return response(problem(exception.conflict()?HttpStatus.CONFLICT:HttpStatus.BAD_REQUEST,"Idempotency error",exception.getMessage(),"urn:task-management:problem:idempotency",request));
+    }
+    @ExceptionHandler(org.springframework.dao.CannotAcquireLockException.class)
+    ResponseEntity<ProblemDetail> busy(Exception exception,HttpServletRequest request) {
+        return ResponseEntity.status(409).header("Retry-After","1").body(problem(HttpStatus.CONFLICT,"Command busy","Retry with the same idempotency key.","urn:task-management:problem:busy",request));
+    }
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    ResponseEntity<ProblemDetail> integrity(Exception exception,HttpServletRequest request) {
+        return response(problem(HttpStatus.CONFLICT,"Task conflict","The operation conflicts with the current task data.","urn:task-management:problem:conflict",request));
+    }
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<ProblemDetail> unexpected(Exception exception,HttpServletRequest request) {
+        HttpStatus status=exception instanceof org.springframework.web.ErrorResponse framework
+                ? HttpStatus.valueOf(framework.getStatusCode().value()) : HttpStatus.INTERNAL_SERVER_ERROR;
+        return response(problem(status,status.getReasonPhrase(),"The request could not be processed.","urn:task-management:problem:request-error",request));
     }
 
     private ProblemDetail problem(HttpStatus status, String title, String detail, String type,

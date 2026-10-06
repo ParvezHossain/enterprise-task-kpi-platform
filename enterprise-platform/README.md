@@ -1,59 +1,18 @@
 # Enterprise Platform
+Three independently built Maven services: [Auth](auth-server/README.md),
+[Task](task-management/README.md), [KPI](kpi-service/README.md).
+The [frontends](frontend/README.md) share plain HTML/JavaScript, Tailwind and charts.
 
-The three backend projects are independent, parent-less Maven projects.
-[Auth Server](auth-server/README.md) is a Boot application with PostgreSQL
-integration tests. Task, KPI, frontend pages, and Compose remain skeletons.
+From the repository root:
 
-## Structure
+    mvn -f enterprise-platform/auth-server/pom.xml clean verify
+    mvn -f enterprise-platform/task-management/pom.xml clean verify
+    mvn -f enterprise-platform/kpi-service/pom.xml clean verify
 
-```text
-enterprise-platform/
-├── README.md
-├── .gitignore
-├── .env.example
-├── docker-compose.yml
-├── auth-server/
-│   ├── pom.xml
-│   ├── README.md
-│   └── src/
-│       ├── main/
-│       │   ├── java/com/parvez/auth/
-│       │   │   ├── AuthServerApplication.java
-│       │   │   └── config/SecurityConfiguration.java
-│       │   └── resources/application.yml
-│       └── test/java/com/parvez/auth/AuthServerApplicationIT.java
-├── task-management/
-│   └── pom.xml
-├── kpi-service/
-│   └── pom.xml
-├── frontend/
-│   ├── task-management-ui/
-│   │   └── index.html
-│   └── kpi-ui/
-│       └── index.html
-├── requests/
-│   └── README.md
-└── docs/
-    └── README.md
-```
+Java 25/Maven and running Docker are required. All services have application
+tests; KPI is no longer an empty skeleton. There is no root reactor.
 
-## Verify
-
-Use Java 25+ and Maven. From this directory, run each independent build:
-
-```sh
-mvn -f auth-server/pom.xml clean verify
-mvn -f task-management/pom.xml clean verify
-mvn -f kpi-service/pom.xml clean verify
-```
-
-Docker is required for auth-server integration tests. Empty JAR warnings and
-reports of no sources/tests remain expected for Task and KPI. There is no root
-reactor POM; follow [AGENTS.md](../AGENTS.md).
-
-The Compose placeholder defines no services and cannot start the platform.
-The `.env.example` template documents auth-server connection variables. Open either frontend
-`index.html` directly in a browser to view its static placeholder.
-
-See [development](../docs/development.md), [architecture](../docs/architecture.md),
-and the [backlog](../docs/tickets/backlog.md) for commands and subsequent work.
+Follow [complete local setup](../docs/development.md#complete-local-platform) to
+generate private material, build/start Compose and seed local data. Frontends:
+http://127.0.0.1:8080 and http://127.0.0.1:8081. See
+[deployment](../docs/deployment.md) for production boundaries.

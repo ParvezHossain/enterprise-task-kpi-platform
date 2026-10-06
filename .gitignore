@@ -28,3 +28,12 @@ Thumbs.db
 **/http-client.private.env.json
 **/.http-client/
 *.pem
+
+# Generated frontend artifacts and browser output
+enterprise-platform/frontend/shared/style.css
+enterprise-platform/frontend/shared/chart.js
+**/test-results/
+**/playwright-report/
+
+__pycache__/
+*.pyc

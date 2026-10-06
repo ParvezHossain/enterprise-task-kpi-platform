@@ -65,7 +65,7 @@ Record version choices, compatibility evidence, and API migration notes in
 The repository has three independent, parent-less Maven projects under
 `enterprise-platform/`; there is no root POM or reactor. Auth server is a Boot
 application with PostgreSQL Testcontainers integration tests; Task is a resource
-server with PostgreSQL-backed lifecycle and query tests; KPI remains an empty skeleton. When adding or changing a module,
+server with PostgreSQL-backed lifecycle and query tests; KPI is a resource server with PostgreSQL read-model, aggregate and security tests. When adding or changing a module,
 update this section and `docs/development.md` with its exact commands,
 prerequisites, profiles, and service setup.
 
@@ -110,7 +110,7 @@ AUTH_TASK_CLIENT_SECRET_HASH and AUTH_KPI_CLIENT_SECRET_HASH. See
 commands. Do not skip tests to obtain a successful final build. For shared build,
 dependency, or cross-module changes, verify all three independent projects.
 For documentation-only tickets, inspect the diff and run `git diff --check`.
-For skeleton builds, explicitly report that no application tests exist yet.
+All three services now have application tests. The frontend has UI and real Compose workflow tests.
 
 ## Documentation and architectural decisions
 
@@ -138,3 +138,23 @@ run and their results, and any unresolved blockers.
 build/smoke commands above. For workflow changes, also run
 `actionlint .github/workflows/ci-cd.yml`. Default-branch pushes publish the tested
 Auth image to GHCR; see `docs/development.md` for repository settings and scope.
+
+
+## Complete platform checks
+Run from repository root after all three Maven verifies:
+
+| Scope | Command | Prerequisites |
+| --- | --- | --- |
+| Frontend dependencies/build | npm --prefix enterprise-platform/frontend ci; npm --prefix enterprise-platform/frontend run build | Node 24 LTS/npm |
+| Frontend UI tests | npm --prefix enterprise-platform/frontend test | Built assets, Python 3, installed Playwright Chromium |
+| Compose health | docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml up --build -d --wait | Generated private material; Docker/Compose |
+| Development seed | python3 scripts/seed-local.py | Healthy stack with explicit dev profiles; rejects production |
+| Real workflow (three repeats) | npm --prefix enterprise-platform/frontend run test:e2e -- --repeat-each=3 | Healthy stack, Java 25, packaged Auth JAR, unzip, Chromium |
+| Task image | docker build -t task-management:local enterprise-platform/task-management | Docker |
+| KPI image | docker build -t kpi-service:local enterprise-platform/kpi-service | Docker |
+| Frontend image | docker build -t platform-frontend:local enterprise-platform/frontend | Docker |
+
+See docs/development.md#complete-local-platform for exact secret generation,
+key-mount permissions, commands and environment settings. Each real workflow run
+creates new users/team/project/task; private fixtures stay in .local. Finish Maven
+builds before the workflow so its initial crypto-JAR copy is available.

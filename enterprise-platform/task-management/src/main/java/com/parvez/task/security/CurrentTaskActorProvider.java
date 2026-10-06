@@ -24,7 +24,9 @@ public class CurrentTaskActorProvider {
             return actor;
         }
         try {
-            return actorFactory.fromJwt(jwt, teamLeaderships.findManagedTeamIds(UUID.fromString(actor.subject())));
+            var managed=teamLeaderships.findManagedTeamIds(UUID.fromString(actor.subject()));
+            if(managed.size()>1000) throw new org.springframework.security.access.AccessDeniedException("Managed-team limit exceeded");
+            return actorFactory.fromJwt(jwt, managed);
         } catch (IllegalArgumentException exception) {
             return actor;
         }

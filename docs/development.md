@@ -95,18 +95,12 @@ This token is deliberately unsigned and has no production trust value. The
 and database initialization if it is combined with `docker`, `prod`, or `production`. The
 normal profile continues to require Auth Server RS256 signatures.
 
-## Frontend and Compose placeholders
+## Frontend and Compose
 
-Open `enterprise-platform/frontend/task-management-ui/index.html` or
-`enterprise-platform/frontend/kpi-ui/index.html` in a browser. Neither needs Node
-or a frontend build step yet.
-
-`enterprise-platform/docker-compose.yml` intentionally contains `services: {}`.
-No Compose services can be started yet. The environment template now contains
-auth-server variables; it must be exported explicitly for standalone startup.
-
-Keep local `.env` files private; `.env.example` is tracked. Build output, IDE
-metadata, and `node_modules/` are ignored by Git.
+Both browser applications and all backend services run through the complete
+Compose environment described under [Complete local platform](#complete-local-platform).
+Frontend assets require the pinned Node/Tailwind build; Docker builds them automatically.
+Keep generated .local/ environment files private.
 
 ## Agreed implementation baseline (TICKET-0002)
 
@@ -283,7 +277,7 @@ logins. JetBrains HTTP Client CLI 2026.1 (build 261.25134.95) executed this repo
 `requests/auth.http` for both environments: 10/10 requests passed per client.
 Generated passwords/client secrets were absent from application logs. Temporary
 application/container processes were removed after verification. `git diff --check`
-passed. Task and KPI remain unchanged skeletons without application tests.
+passed. At that ticket, Task and KPI still contained skeletons; both now have application tests.
 
 ## Login/logout and consent verification (TICKET-0106)
 
@@ -321,8 +315,8 @@ JetBrains HTTP Client CLI 2026.1 executed the actual `requests/auth.http` for bo
 refresh revocation followed by session logout, then verifies that account and
 authorization requests require a new login. Application/container processes were
 cleaned up afterward. Generated-secret scanning and `git diff --check` passed.
-Task and KPI are unchanged skeletons without application tests; no cross-module
-build or dependency change was made in this ticket.
+At that ticket, Task and KPI still contained skeletons; the complete-platform
+verification below now covers both applications.
 
 ## Problem Details verification (TICKET-0107)
 
@@ -494,3 +488,108 @@ not configured. Consumers should deploy the published digest for reproducibility
 To reproduce checks locally, run all three Maven verification commands, then the
 Docker build and Python smoke commands in the repository contract. Workflow lint:
 `actionlint .github/workflows/ci-cd.yml` (requires actionlint on PATH).
+
+
+## Complete local platform
+Prerequisites: Java 25+, Maven, Docker Engine/Compose, Python 3, unzip, Node 24 LTS
+and npm. Run all commands from the repository root, which has no reactor POM.
+
+Verify the independent services:
+
+    mvn -f enterprise-platform/auth-server/pom.xml clean verify
+    mvn -f enterprise-platform/task-management/pom.xml clean verify
+    mvn -f enterprise-platform/kpi-service/pom.xml clean verify
+
+Generate private development material once, before the first database initialization:
+
+    unzip -q -o enterprise-platform/auth-server/target/auth-server-0.0.1-SNAPSHOT.jar 'BOOT-INF/lib/*' -d enterprise-platform/auth-server/target/auth-tools
+    java --class-path 'enterprise-platform/auth-server/target/auth-tools/BOOT-INF/lib/*' scripts/com/parvez/tools/PrepareDevelopment.java
+    docker run --rm --user 0 -v "$PWD/.local/auth:/keys" --entrypoint sh postgres:18.6-alpine -c 'chgrp 10001 /keys/private.pem /keys/public.pem && chmod 640 /keys/private.pem /keys/public.pem'
+
+The utility refuses to overwrite .local/auth. It writes .local/stack.env,
+.local/users.json and explicit auth/task seed SQL. Secrets are generated and never
+printed. Keep these files paired with the database volume across restarts.
+Directory permissions are private; the mounted key files are readable by container
+group 10001. The helper container only adjusts those two generated files.
+
+Build/start, validate health and seed:
+
+    docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml config --quiet
+    docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml up --build -d --wait
+    python3 scripts/seed-local.py
+    docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml ps
+
+Seed execution checks explicit dev profiles, rejects prod/production, and requires
+all backend services to be healthy. Repeated seeding does not duplicate data.
+There are six users (all four roles, two team leaders, two employees), two teams,
+two projects and 80 historical tasks with varied statuses, priorities, completion,
+timeliness and audit events. Credentials are in the private users.json file.
+Do not copy them to source control or logs.
+
+Open http://127.0.0.1:8080 for Task and http://127.0.0.1:8081 for KPI. Sign in with
+a generated user of the needed role. Auth is http://127.0.0.1:9000.
+KPI normally refreshes every 60 seconds. A first empty sweep may show zero until
+the post-seed sweep; stale complete data is explicitly marked.
+
+Frontend and complete workflow verification:
+
+    npm --prefix enterprise-platform/frontend ci
+    npm --prefix enterprise-platform/frontend run build
+    cd enterprise-platform/frontend
+    npx playwright install chromium
+    npm test
+    cd ../..
+    npm --prefix enterprise-platform/frontend run test:e2e -- --repeat-each=3
+
+The real workflow creates new users/team/project/task for every repeat, exercises
+real OAuth code/PKCE login and BFF CSRF, verifies all six audit actions and polls
+KPI's eventual completed count. It uses no mocked backend. Run after the Maven
+builds; its fixture utility reads the packaged Auth JAR's crypto dependencies.
+Playwright uses the installed full Chromium channel, not a system browser.
+No trace/screenshot artifacts containing OAuth secrets are produced.
+
+Standalone images:
+
+    docker build -t auth-server:local enterprise-platform/auth-server
+    docker build -t task-management:local enterprise-platform/task-management
+    docker build -t kpi-service:local enterprise-platform/kpi-service
+    docker build -t platform-frontend:local enterprise-platform/frontend
+    python3 scripts/smoke-auth-container.py --image auth-server:local
+
+Stop the stack without deleting its data:
+
+    docker compose --env-file .local/stack.env -f enterprise-platform/docker-compose.yml down
+
+### Additional environment settings
+Generated stack.env contains the operator password, three runtime passwords,
+three migration passwords, three OAuth secrets/hashes and signing key ID.
+Application services receive only their relevant credentials.
+Task: TASK_MAX_PAGE_SIZE (100), task.cors.allowed-origins (explicit origin list).
+Auth: auth.login-rate-limit.attempts (20), auth.login-rate-limit.window-seconds (60),
+AUTH_KPI_SYNC_SECRET_HASH (encoded Argon2 client secret, optional unless syncing).
+KPI: KPI_TASK_URL, KPI_TOKEN_URL, KPI_SYNC_SECRET, KPI_SYNC_INTERVAL_MS (60000),
+KPI_SYNC_ENABLED (true); kpi.sync-initial-delay-ms (1000 for local/test tuning).
+BFF: BFF_CLIENT_SECRET, AUTH_ISSUER, BFF_AUTH_INTERNAL_URL, BFF_REDIRECT_URI,
+BFF_COOKIE_SECURE (false only for local HTTP), and bff.api-url for the internal
+loopback resource API. Production requirements are in deployment.md.
+
+### Request correlation example
+A browser create-task call supplies a UUID X-Request-ID. Nginx forwards it, the
+Task BFF forwards it to Task's bearer API, both completion logs retain it, and the
+CREATED audit metadata stores it. The private metric feed includes creationRequestId.
+KPI records that ID and logs task_metric_staged with the original requestId and
+the separate syncId. Thus eventual REST-pull work can be linked to the originating
+create request without pretending it happened inside the browser transaction.
+Auth login has its own generated ID; token bodies and browser passwords are not logged.
+
+Example JSON fields (the status depends on the request):
+    {"message":"request_completed status=201","requestId":"a1b2c3","traceId":"a1b2c3"}
+    {"message":"task_metric_staged syncId=sync-run-id","requestId":"a1b2c3","traceId":"a1b2c3"}
+
+### Metric names
+Micrometer tasks.created/approved/assigned/completed/closed are after-commit
+counters; tasks.overdue is a current database gauge. HTTP request timers come from
+Boot's web observations. The Prometheus client reserves _created, so tasks.created
+exports as tasks_total; the other counters export tasks_approved_total,
+tasks_assigned_total, tasks_completed_total and tasks_closed_total.
+KPI exposes kpi_sync_success_total, kpi_sync_failure_total and kpi_sync_age_seconds.

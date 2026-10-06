@@ -45,3 +45,34 @@ management:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+logging:
+  structured:
+    format:
+      console: logstash
+  level:
+    org.hibernate.orm.jdbc.bind: OFF
+    org.hibernate.orm.jdbc.extract: OFF
+    org.hibernate.orm.jdbc.error: OFF
+    org.hibernate.orm.jdbc.warn: OFF
+    org.springframework.security: INFO
+    org.springframework.jdbc.core: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: bff
+server:
+  servlet:
+    session:
+      cookie:
+        name: TASK_SESSION
+        http-only: true
+        same-site: lax
+        secure: ${BFF_COOKIE_SECURE:false}
+bff:
+  issuer: ${AUTH_ISSUER:http://localhost:9000}
+  auth-internal-url: ${BFF_AUTH_INTERNAL_URL:http://localhost:9000}
+  client-secret: ${BFF_CLIENT_SECRET}
+  redirect-uri: ${BFF_REDIRECT_URI:http://127.0.0.1:8080/login/oauth2/code/task-management-ui}

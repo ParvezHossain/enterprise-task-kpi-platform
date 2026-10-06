@@ -40,6 +40,7 @@ final class TestAuthMaterial {
     }
 
     static void register(DynamicPropertyRegistry registry, String issuer) {
+        registry.add("auth.login-rate-limit.attempts", () -> 1000);
         registry.add("auth.signing.issuer", () -> issuer);
         registry.add("auth.signing.private-key", () -> PRIVATE_KEY.toUri().toString());
         registry.add("auth.signing.public-key", () -> PUBLIC_KEY.toUri().toString());

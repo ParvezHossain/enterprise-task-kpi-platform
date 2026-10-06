@@ -20,5 +20,6 @@ public record TaskSearchRequest(
         UUID projectId,
         UUID createdBy,
         Instant createdFrom,
-        Instant createdTo) {
+        Instant createdTo,
+        @jakarta.validation.constraints.Size(max=200) String title) {
 }

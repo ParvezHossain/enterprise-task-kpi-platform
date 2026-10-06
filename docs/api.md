@@ -207,3 +207,79 @@ Details, including requests accepting HTML. Unexposed endpoints such as
 server-generated `X-Request-ID` response header for locating its JSON logs;
 caller-supplied correlation headers are ignored. Existing Problem Details bodies
 remain unchanged.
+
+
+## Durable Task commands
+POST /api/v1/tasks/{id}/approve, /assign and /close now require Idempotency-Key:
+1–128 printable non-whitespace ASCII characters. Request DTOs still include version;
+assignment includes employeeId. Matching replay returns the original 200 DTO after
+current access checks. Changed payloads return 409; missing/invalid keys return 400.
+Busy database locks return 409 with Retry-After: 1. The replay window is 24 hours.
+PATCH /status remains version-protected and does not require a key.
+
+Every successful create/approve/assign/start/complete/close inserts history in the
+same transaction. Audit endpoints remain read-only and paginated. Task queries
+also accept title (at most 200 characters), a case-insensitive literal substring.
+Wildcards are escaped before database filtering.
+
+GET /api/v1/reference/teams returns at most 100 teams per page; manager roles see
+all, leaders managed teams, employees member teams. /projects requires teamId and
+manager/managed-team access; /members requires Admin or managed-team assignment
+access. Both are bounded at 100 per page. Reference responses are dedicated DTOs.
+
+## KPI endpoints
+GET /api/v1/kpis/me, /team, /company return an envelope containing data, dataAsOf,
+lastSuccessfulSyncAt and stale. Data includes counts, completionPercentage,
+onTimePercentage and score. Team requires teamId; company requires Admin/PM.
+Ranking and top-performers accept teamId/from/to/page/size; size defaults to 20,
+caps at 100, page is 0–100000. Employees cannot query rankings; leaders need a
+currently authorized team. Rankings contain employeeId/counts/score and page data.
+
+GET /api/v1/kpis/trends and /distribution accept scope=me|team|company and the same
+team/date authorization. Trend rows are calendar-month aggregates (at most 14);
+distribution has bounded status groups. Date filters select task created_at in UTC;
+defaults cover the latest 365 days and the maximum range is 366 days. No successful
+snapshot means 503 Problem Details; an outage retains the last complete snapshot.
+
+Completed includes COMPLETED/CLOSED. On-time requires completed_at and due_date,
+comparing the UTC completion date to due_date. Overdue means an unfinished task
+with due_date before today. Mean duration is hours from started_at to completed_at;
+missing timestamps are excluded. The zero denominator produces zero percentages.
+
+### Deterministic score
+For total T, completed C, on-time N, unfinished-overdue O, and mean completed
+priority weight W (LOW=1, MEDIUM=2, HIGH=3, URGENT=4):
+
+    score = round_half_up_2(clamp(100 * (
+      0.4*C/T + 0.3*(N/C) + 0.2*min(C/20,1) + 0.1*W/4 - 0.2*O/T
+    ), 0, 100))
+
+Zero T yields 0.00; zero C yields zero N/C and W. Ties sort by employee UUID.
+The pure Java function and database ranking expression use the same formula.
+No cache is used; the published read model is eventual-consistency integration data.
+
+### Browser BFF and internal feed
+/bff/session returns subject, roles and csrfToken, never OAuth tokens.
+/bff/api proxies each app's permitted versioned API with its server-held access
+token. Unsafe requests use X-CSRF-TOKEN. POST /bff/logout ends the local session.
+Login starts at /oauth2/authorization/{task-management-ui|kpi-ui}; callbacks match
+the registered local ports. Expired tokens refresh server-side.
+
+GET /internal/metrics/tasks is machine-only. size is capped at 500; cursor and
+upperId are UUID keyset boundaries. It returns content/upperId/nextCursor metric
+DTOs including lifecycle timestamps and optional creationRequestId.
+/internal/metrics/team-access checks current leadership for userId/teamId.
+The kpi-sync machine subject and task.metrics.read scope are required.
+
+401/403 bearer failures, validation, malformed bodies, invalid transitions,
+version/idempotency conflicts and unexpected errors use RFC 9457. Unexpected
+errors have generic detail. X-Request-ID is returned and propagated through BFF/API.
+
+[Platform request examples](../requests/platform.http) complement the OIDC walkthrough.
+Compose keeps backend API ports internal; these direct requests are for standalone
+local services or controlled internal access. Browser Compose workflows use the BFF.
+
+Trend and distribution responses also use bounded pagination: page defaults to 0,
+size defaults to 16 and is capped at 16. Their envelope data contains content,
+page, size and hasNext. Invalid negative pages or nonpositive sizes return 400.
+The default page includes all monthly buckets in the maximum 366-day date range.

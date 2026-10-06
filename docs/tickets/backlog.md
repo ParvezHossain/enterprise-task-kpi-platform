@@ -1,4 +1,9 @@
 ````
+
+Current status (2026-10-05): implementation prompts 1–48 are resolved. Acceptance
+checks below reflect the executed [engineering review](../engineering-review.md).
+KPI response caching is explicitly resolved by the permitted documented deferral.
+
 # Enterprise Platform — Implementation Backlog
 
 ## Table of Contents
@@ -103,11 +108,11 @@ At minimum, architectural, security, database, API, and deployment decisions sho
 
 ### Acceptance Criteria
 
-- [ ] `AGENTS.md` exists at the repository root.
-- [ ] A fresh Codex session with no additional context follows the repository contract.
-- [ ] New Java code uses `com.parvez`.
-- [ ] The specified technology stack is followed.
-- [ ] Outdated Spring Boot 2/3 configuration is not copied into the project.
+- [x] `AGENTS.md` exists at the repository root.
+- [x] A fresh Codex session with no additional context follows the repository contract.
+- [x] New Java code uses `com.parvez`.
+- [x] The specified technology stack is followed.
+- [x] Outdated Spring Boot 2/3 configuration is not copied into the project.
 
 ---
 
@@ -191,12 +196,12 @@ Include other common Java/IDE-generated files where appropriate.
 
 ### Acceptance Criteria
 
-- [ ] Repository structure matches the README.
-- [ ] All three backend modules contain valid `pom.xml` files.
-- [ ] Each backend module is independently buildable.
-- [ ] `groupId` and `artifactId` are correct.
-- [ ] Frontend applications contain placeholder `index.html` files.
-- [ ] Root `.gitignore` covers Maven, environment, IDE, and frontend artifacts.
+- [x] Repository structure matches the README.
+- [x] All three backend modules contain valid `pom.xml` files.
+- [x] Each backend module is independently buildable.
+- [x] `groupId` and `artifactId` are correct.
+- [x] Frontend applications contain HTML entry points (the initial placeholders are now complete UIs).
+- [x] Root `.gitignore` covers Maven, environment, IDE, and frontend artifacts.
 
 ---
 
@@ -282,11 +287,11 @@ If caching is deferred, document how caching can be introduced later.
 
 ### Acceptance Criteria
 
-- [ ] `docs/architecture.md` exists.
-- [ ] The document contains a decisions table.
-- [ ] All required architectural decisions are explicitly documented.
-- [ ] Alternatives and rationale are recorded.
-- [ ] Decisions are referenced by subsequent tickets where applicable.
+- [x] `docs/architecture.md` exists.
+- [x] The document contains a decisions table.
+- [x] All required architectural decisions are explicitly documented.
+- [x] Alternatives and rationale are recorded.
+- [x] Decisions are referenced by subsequent tickets where applicable.
 
 ---
 
@@ -330,9 +335,9 @@ com.parvez.auth
 
 ### Acceptance Criteria
 
-- [ ] Application boots successfully.
-- [ ] Application starts with an empty context.
-- [ ] `/actuator/health` returns HTTP `200`.
+- [x] Application boots successfully.
+- [x] Application starts with an empty context.
+- [x] `/actuator/health` returns HTTP `200`.
 
 ---
 
@@ -373,9 +378,9 @@ spring:
 
 ### Acceptance Criteria
 
-- [ ] Flyway migrations execute successfully against a fresh database.
-- [ ] Hibernate validates the schema successfully.
-- [ ] No schema mismatch exists between entities and database tables.
+- [x] Flyway migrations execute successfully against a fresh database.
+- [x] Hibernate validates the schema successfully.
+- [x] No schema mismatch exists between entities and database tables.
 
 ---
 
@@ -419,11 +424,11 @@ Create a Testcontainers PostgreSQL integration test that confirms:
 
 ### Acceptance Criteria
 
-- [ ] Entities exist.
-- [ ] Repositories exist.
-- [ ] Required roles are seeded.
-- [ ] Required permissions are seeded.
-- [ ] Testcontainers integration test passes.
+- [x] Entities exist.
+- [x] Repositories exist.
+- [x] Required roles are seeded.
+- [x] Required permissions are seeded.
+- [x] Testcontainers integration test passes.
 
 ---
 
@@ -452,11 +457,11 @@ If the default is used instead of Argon2id:
 
 ### Acceptance Criteria
 
-- [ ] Password hashes differ between calls due to salting.
-- [ ] `verify()` successfully validates the original password.
-- [ ] Incorrect passwords fail verification.
-- [ ] Registration flow produces no password/token leakage in logs.
-- [ ] No raw password logging exists anywhere in the implementation.
+- [x] Password hashes differ between calls due to salting.
+- [x] `verify()` successfully validates the original password.
+- [x] Incorrect passwords fail verification.
+- [x] Registration flow produces no password/token leakage in logs.
+- [x] No raw password logging exists anywhere in the implementation.
 
 ---
 
@@ -511,12 +516,12 @@ containing a manual flow for the complete authorization-code + PKCE process.
 
 ### Acceptance Criteria
 
-- [ ] Authorization Code + PKCE flow works.
-- [ ] Refresh token flow works.
-- [ ] OIDC discovery works.
-- [ ] JWT is signed using RSA.
-- [ ] JWT contains roles/authorities.
-- [ ] Manual `.http` flow returns a valid JWT.
+- [x] Authorization Code + PKCE flow works.
+- [x] Refresh token flow works.
+- [x] OIDC discovery works.
+- [x] JWT is signed using RSA.
+- [x] JWT contains roles/authorities.
+- [x] Manual `.http` flow returns a valid JWT.
 
 ---
 
@@ -540,11 +545,11 @@ If auto-approval is selected:
 
 ### Acceptance Criteria
 
-- [ ] Manual login succeeds.
-- [ ] Token issuance succeeds.
-- [ ] Logout succeeds.
-- [ ] Session/token state is correctly cleared.
-- [ ] Consent behavior is documented.
+- [x] Manual login succeeds.
+- [x] Token issuance succeeds.
+- [x] Logout succeeds.
+- [x] Session/token state is correctly cleared.
+- [x] Consent behavior is documented.
 
 ---
 
@@ -573,10 +578,10 @@ Return RFC 9457 Problem Details for:
 
 ### Acceptance Criteria
 
-- [ ] Invalid login returns Problem Details.
-- [ ] Malformed requests return Problem Details.
-- [ ] Validation errors return Problem Details.
-- [ ] Stack traces are not leaked.
+- [x] Invalid login returns Problem Details.
+- [x] Malformed requests return Problem Details.
+- [x] Validation errors return Problem Details.
+- [x] Stack traces are not leaked.
 
 ---
 
@@ -613,10 +618,10 @@ Protected:
 
 ### Acceptance Criteria
 
-- [ ] `/actuator/prometheus` exposes metrics when authenticated.
-- [ ] Sensitive endpoints reject unauthenticated requests.
-- [ ] Logs contain correlation information.
-- [ ] Logs are structured JSON.
+- [x] `/actuator/prometheus` exposes metrics when authenticated.
+- [x] Sensitive endpoints reject unauthenticated requests.
+- [x] Logs contain correlation information.
+- [x] Logs are structured JSON.
 
 ---
 
@@ -641,9 +646,9 @@ Use Testcontainers PostgreSQL to test:
 
 ### Acceptance Criteria
 
-- [ ] `mvn clean verify` passes.
-- [ ] Security-critical paths have meaningful test coverage.
-- [ ] Tests validate behavior, not merely line coverage.
+- [x] `mvn clean verify` passes.
+- [x] Security-critical paths have meaningful test coverage.
+- [x] Tests validate behavior, not merely line coverage.
 
 ---
 
@@ -678,9 +683,9 @@ Document:
 
 ### Acceptance Criteria
 
-- [ ] `docker build` succeeds.
-- [ ] Container starts.
-- [ ] Health check passes.
+- [x] `docker build` succeeds.
+- [x] Container starts.
+- [x] Health check passes.
 
 ---
 
@@ -1067,10 +1072,10 @@ For the same idempotency key:
 
 ### Acceptance Criteria
 
-- [ ] Idempotency keys are persisted.
-- [ ] Duplicate requests do not execute twice.
-- [ ] Original response is replayed.
-- [ ] Behavior survives application restarts/instances.
+- [x] Idempotency keys are persisted.
+- [x] Duplicate requests do not execute twice.
+- [x] Original response is replayed.
+- [x] Behavior survives application restarts/instances.
 
 ---
 
@@ -1104,10 +1109,10 @@ Audit records must not have:
 
 ### Acceptance Criteria
 
-- [ ] Every transition creates an audit event.
-- [ ] Audit events are queryable.
-- [ ] Audit events cannot be edited.
-- [ ] Audit events cannot be deleted through application services.
+- [x] Every transition creates an audit event.
+- [x] Audit events are queryable.
+- [x] Audit events cannot be edited.
+- [x] Audit events cannot be deleted through application services.
 
 ---
 
@@ -1156,12 +1161,12 @@ If using a stateless JWT resource server:
 
 ### Acceptance Criteria
 
-- [ ] Every major error branch has a test.
-- [ ] Correct status codes are returned.
-- [ ] Problem Details shape is consistent.
-- [ ] CORS origins are configurable.
-- [ ] Wildcard CORS is not used in production.
-- [ ] CSRF decision is documented.
+- [x] Every major error branch has a test.
+- [x] Correct status codes are returned.
+- [x] Problem Details shape is consistent.
+- [x] CORS origins are configurable.
+- [x] Wildcard CORS is not used in production.
+- [x] CSRF decision is documented.
 
 ---
 
@@ -1194,11 +1199,11 @@ Also include:
 
 ### Acceptance Criteria
 
-- [ ] Custom counters are emitted.
-- [ ] Request duration is measured.
-- [ ] Correlation IDs appear in logs.
-- [ ] Prometheus endpoint exposes the metrics.
-- [ ] Metrics increase after exercising the API.
+- [x] Custom counters are emitted.
+- [x] Request duration is measured.
+- [x] Correlation IDs appear in logs.
+- [x] Prometheus endpoint exposes the metrics.
+- [x] Metrics increase after exercising the API.
 
 ---
 
@@ -1233,13 +1238,13 @@ Do not simulate concurrency with sequential calls.
 
 ### Acceptance Criteria
 
-- [ ] `mvn clean verify` passes.
-- [ ] State machine is fully tested.
-- [ ] Authorization matrix is fully tested.
-- [ ] IDOR tests pass.
-- [ ] Integration tests use Testcontainers.
-- [ ] Concurrency tests execute in parallel.
-- [ ] Exactly-one-winner semantics are asserted.
+- [x] `mvn clean verify` passes.
+- [x] State machine is fully tested.
+- [x] Authorization matrix is fully tested.
+- [x] IDOR tests pass.
+- [x] Integration tests use Testcontainers.
+- [x] Concurrency tests execute in parallel.
+- [x] Exactly-one-winner semantics are asserted.
 
 ---
 
@@ -1297,10 +1302,10 @@ com.parvez.kpi
 
 ### Acceptance Criteria
 
-- [ ] Application boots.
-- [ ] JWT validation is configured.
-- [ ] KPI service uses its own database.
-- [ ] Actuator health works.
+- [x] Application boots.
+- [x] JWT validation is configured.
+- [x] KPI service uses its own database.
+- [x] Actuator health works.
 
 ---
 
@@ -1332,10 +1337,10 @@ KPI Service periodically synchronizes the required Task Management data into its
 
 ### Acceptance Criteria
 
-- [ ] Selected integration approach matches `docs/architecture.md`.
-- [ ] KPI Service does not access Task Management DB directly.
-- [ ] Integration test verifies read-model construction.
-- [ ] Task Management unavailability is handled gracefully.
+- [x] Selected integration approach matches `docs/architecture.md`.
+- [x] KPI Service does not access Task Management DB directly.
+- [x] Integration test verifies read-model construction.
+- [x] Task Management unavailability is handled gracefully.
 
 ---
 
@@ -1369,11 +1374,11 @@ Do not load large entity collections into Java and calculate aggregates using lo
 
 ### Acceptance Criteria
 
-- [ ] Aggregates execute in the database.
-- [ ] Seeded test dataset produces expected values.
-- [ ] No N+1 queries occur.
-- [ ] Query-count assertion is included where useful.
-- [ ] Hibernate statistics or equivalent verifies query behavior.
+- [x] Aggregates execute in the database.
+- [x] Seeded test dataset produces expected values.
+- [x] No N+1 queries occur.
+- [x] Query-count assertion is included where useful.
+- [x] Hibernate statistics or equivalent verifies query behavior.
 
 ---
 
@@ -1405,11 +1410,11 @@ docs/api.md
 
 ### Acceptance Criteria
 
-- [ ] Formula is documented.
-- [ ] Function is deterministic.
-- [ ] Fixed inputs produce exact expected scores.
-- [ ] Rankings are deterministic.
-- [ ] No randomness exists.
+- [x] Formula is documented.
+- [x] Function is deterministic.
+- [x] Fixed inputs produce exact expected scores.
+- [x] Rankings are deterministic.
+- [x] No randomness exists.
 
 ---
 
@@ -1436,11 +1441,11 @@ Employees must not access sensitive company-wide data unless explicitly authoriz
 
 ### Acceptance Criteria
 
-- [ ] All KPI endpoints are implemented.
-- [ ] Authorization is role-scoped.
-- [ ] Employees cannot access unauthorized company-wide data.
-- [ ] List-shaped responses support pagination.
-- [ ] Integration tests cover each role.
+- [x] All KPI endpoints are implemented.
+- [x] Authorization is role-scoped.
+- [x] Employees cannot access unauthorized company-wide data.
+- [x] List-shaped responses support pagination.
+- [x] Integration tests cover each role.
 
 ---
 
@@ -1475,8 +1480,8 @@ Document:
 
 ### Acceptance Criteria
 
-- [ ] Decision matches TICKET-0002.
-- [ ] Caching behavior is explicitly documented or implemented.
+- [x] Decision matches TICKET-0002.
+- [x] Caching behavior is explicitly documented or implemented.
 
 ---
 
@@ -1496,11 +1501,11 @@ Implement:
 
 ### Acceptance Criteria
 
-- [ ] Test suite passes.
-- [ ] Observability is available.
-- [ ] Docker image builds successfully.
-- [ ] Container runs as non-root.
-- [ ] Service health check passes.
+- [x] Test suite passes.
+- [x] Observability is available.
+- [x] Docker image builds successfully.
+- [x] Container runs as non-root.
+- [x] Service health check passes.
 
 ---
 
@@ -1533,9 +1538,9 @@ Place common CSS/JS in a location that both applications can reference.
 
 ### Acceptance Criteria
 
-- [ ] Both frontends use the shared design system.
-- [ ] Components have consistent styling.
-- [ ] Static style-guide page renders every shared component.
+- [x] Both frontends use the shared design system.
+- [x] Components have consistent styling.
+- [x] Static style-guide page renders every shared component.
 
 ---
 
@@ -1561,11 +1566,11 @@ Document the selected approach.
 
 ### Acceptance Criteria
 
-- [ ] Login works.
-- [ ] Protected page loads after authentication.
-- [ ] API requests use the appropriate access token/session.
-- [ ] Logout clears authentication state.
-- [ ] No client secret exists in browser code.
+- [x] Login works.
+- [x] Protected page loads after authentication.
+- [x] API requests use the appropriate access token/session.
+- [x] Logout clears authentication state.
+- [x] No client secret exists in browser code.
 
 ---
 
@@ -1636,11 +1641,11 @@ Include lightweight visualizations for:
 
 ### Acceptance Criteria
 
-- [ ] Seeded data appears correctly.
-- [ ] KPI values match API responses.
-- [ ] Role-based visibility works.
-- [ ] Charts render correctly.
-- [ ] Manual walkthrough succeeds.
+- [x] Seeded data appears correctly.
+- [x] KPI values match API responses.
+- [x] Role-based visibility works.
+- [x] Charts render correctly.
+- [x] Manual walkthrough succeeds.
 
 ---
 
@@ -1661,10 +1666,10 @@ Include:
 
 ### Acceptance Criteria
 
-- [ ] Database architecture matches `docs/architecture.md`.
-- [ ] Health checks work.
-- [ ] Data persists across container recreation.
-- [ ] Credentials are not hardcoded.
+- [x] Database architecture matches `docs/architecture.md`.
+- [x] Health checks work.
+- [x] Data persists across container recreation.
+- [x] Credentials are not hardcoded.
 
 ---
 
@@ -1708,10 +1713,10 @@ docker compose up --build
 
 Verify:
 
-- [ ] All services start.
-- [ ] Auth Server health is `UP`.
-- [ ] Task Management health is `UP`.
-- [ ] KPI Service health is `UP`.
+- [x] All services start.
+- [x] Auth Server health is `UP`.
+- [x] Task Management health is `UP`.
+- [x] KPI Service health is `UP`.
 
 ---
 
@@ -1786,10 +1791,10 @@ Prefer reverse-proxy infrastructure for scalable rate limiting where appropriate
 
 ### Acceptance Criteria
 
-- [ ] Security headers are configured.
-- [ ] Login endpoint has rate limiting.
-- [ ] Scaling limitations are documented.
-- [ ] HSTS is enabled only under appropriate TLS conditions.
+- [x] Security headers are configured.
+- [x] Login endpoint has rate limiting.
+- [x] Scaling limitations are documented.
+- [x] HSTS is enabled only under appropriate TLS conditions.
 
 ---
 
@@ -1820,9 +1825,9 @@ Propagate:
 
 For a request that touches multiple services:
 
-- [ ] Same correlation ID appears across service logs.
-- [ ] Browser/request metadata is propagated.
-- [ ] Logs can be used to trace the complete request.
+- [x] Same correlation ID appears across service logs.
+- [x] Browser/request metadata is propagated.
+- [x] Logs can be used to trace the complete request.
 
 ---
 
@@ -1830,7 +1835,7 @@ For a request that touches multiple services:
 
 ### Goal
 
-Automate the complete workflow defined in README section 66.
+Automate the complete workflow defined in [complete local workflow](../development.md#complete-local-platform).
 
 ### Workflow
 
@@ -1863,12 +1868,12 @@ Prefer an integration test spanning real services using:
 
 ### Acceptance Criteria
 
-- [ ] Complete workflow is automated.
-- [ ] Authentication is real.
-- [ ] Service boundaries are exercised.
-- [ ] KPI reflects the completed workflow.
-- [ ] Test is reliable and non-flaky.
-- [ ] Test passes in CI-like conditions.
+- [x] Complete workflow is automated.
+- [x] Authentication is real.
+- [x] Service boundaries are exercised.
+- [x] KPI reflects the completed workflow.
+- [x] Test is reliable and non-flaky.
+- [x] Test passes in CI-like conditions.
 
 ---
 
@@ -1906,13 +1911,13 @@ NON-PRODUCTION
 
 ### Acceptance Criteria
 
-- [ ] Each role has a development user.
-- [ ] Teams exist.
-- [ ] Projects exist.
-- [ ] Tasks exist.
-- [ ] Historical task data exists.
-- [ ] KPI dashboards have meaningful data.
-- [ ] Production environments do not automatically receive development seed data.
+- [x] Each role has a development user.
+- [x] Teams exist.
+- [x] Projects exist.
+- [x] Tasks exist.
+- [x] Historical task data exists.
+- [x] KPI dashboards have meaningful data.
+- [x] Production environments do not automatically receive development seed data.
 
 ---
 
@@ -1958,14 +1963,14 @@ The developer should not need to ask for additional instructions.
 
 ### Acceptance Criteria
 
-- [ ] Architecture documentation is complete.
-- [ ] Security documentation is complete.
-- [ ] Database documentation is complete.
-- [ ] API documentation is complete.
-- [ ] Deployment documentation is complete.
-- [ ] Root README is complete.
-- [ ] All service READMEs are complete.
-- [ ] Full local setup works using documentation only.
+- [x] Architecture documentation is complete.
+- [x] Security documentation is complete.
+- [x] Database documentation is complete.
+- [x] API documentation is complete.
+- [x] Deployment documentation is complete.
+- [x] Root README is complete.
+- [x] All service READMEs are complete.
+- [x] Full local setup works using documentation only.
 
 ---
 
@@ -1973,39 +1978,39 @@ The developer should not need to ask for additional instructions.
 
 ### Goal
 
-Perform a final review against README section 84.
+Perform a final review against [engineering review](../engineering-review.md).
 
 ### Review Areas
 
 Review and resolve all unchecked items in:
 
-- [ ] Architecture
-- [ ] Security
-- [ ] Database
-- [ ] REST API
-- [ ] Performance
-- [ ] Testing
-- [ ] Frontend
-- [ ] DevOps
-- [ ] Documentation
+- [x] Architecture
+- [x] Security
+- [x] Database
+- [x] REST API
+- [x] Performance
+- [x] Testing
+- [x] Frontend
+- [x] DevOps
+- [x] Documentation
 
 ### Final Requirements
 
 Before declaring the project complete:
 
-- [ ] No core `TODO` functionality remains.
-- [ ] No JPA entities are exposed directly.
-- [ ] Backend authorization is enforced.
-- [ ] No unbounded queries exist.
-- [ ] Production does not use `ddl-auto=update`.
-- [ ] All schema changes use Flyway.
-- [ ] Security-critical paths have meaningful tests.
-- [ ] Concurrency behavior is tested.
-- [ ] IDOR protections are tested.
-- [ ] Docker Compose starts the full stack.
-- [ ] End-to-end workflow succeeds.
-- [ ] Documentation is complete.
-- [ ] `mvn clean verify` passes for every backend service.
+- [x] No core `TODO` functionality remains.
+- [x] No JPA entities are exposed directly.
+- [x] Backend authorization is enforced.
+- [x] No unbounded queries exist.
+- [x] Production does not use `ddl-auto=update`.
+- [x] All schema changes use Flyway.
+- [x] Security-critical paths have meaningful tests.
+- [x] Concurrency behavior is tested.
+- [x] IDOR protections are tested.
+- [x] Docker Compose starts the full stack.
+- [x] End-to-end workflow succeeds.
+- [x] Documentation is complete.
+- [x] `mvn clean verify` passes for every backend service.
 
 ---
 
@@ -2013,119 +2018,119 @@ Before declaring the project complete:
 
 ## Repository
 
-- [ ] `AGENTS.md`
-- [ ] Root `README.md`
-- [ ] `.gitignore`
-- [ ] `.env.example`
-- [ ] `docker-compose.yml`
-- [ ] `docs/`
-- [ ] `requests/`
+- [x] `AGENTS.md`
+- [x] Root `README.md`
+- [x] `.gitignore`
+- [x] `.env.example`
+- [x] `docker-compose.yml`
+- [x] `docs/`
+- [x] `requests/`
 
 ## Backend
 
-- [ ] Auth Server
-- [ ] Task Management Service
-- [ ] KPI Service
-- [ ] Independent Maven builds
-- [ ] `com.parvez` package root
+- [x] Auth Server
+- [x] Task Management Service
+- [x] KPI Service
+- [x] Independent Maven builds
+- [x] `com.parvez` package root
 
 ## Security
 
-- [ ] OAuth2/OIDC
-- [ ] PKCE
-- [ ] JWT validation
-- [ ] RSA signing
-- [ ] Role/authority claims
-- [ ] Backend authorization
-- [ ] IDOR protection
-- [ ] Security headers
-- [ ] Rate limiting
-- [ ] CORS
-- [ ] CSRF decision documented
-- [ ] Secure token/session storage
+- [x] OAuth2/OIDC
+- [x] PKCE
+- [x] JWT validation
+- [x] RSA signing
+- [x] Role/authority claims
+- [x] Backend authorization
+- [x] IDOR protection
+- [x] Security headers
+- [x] Rate limiting
+- [x] CORS
+- [x] CSRF decision documented
+- [x] Secure token/session storage
 
 ## Database
 
-- [ ] PostgreSQL
-- [ ] Flyway
-- [ ] Hibernate validation
-- [ ] Optimistic locking
-- [ ] Required indexes
-- [ ] Foreign keys
-- [ ] Unique constraints
-- [ ] No production `ddl-auto=update`
-- [ ] No direct cross-service database access
+- [x] PostgreSQL
+- [x] Flyway
+- [x] Hibernate validation
+- [x] Optimistic locking
+- [x] Required indexes
+- [x] Foreign keys
+- [x] Unique constraints
+- [x] No production `ddl-auto=update`
+- [x] No direct cross-service database access
 
 ## API
 
-- [ ] DTOs
-- [ ] Bean Validation
-- [ ] Problem Details
-- [ ] Pagination
-- [ ] Filtering
-- [ ] Sorting
-- [ ] Authorization
-- [ ] Idempotency
-- [ ] Audit trail
-- [ ] OpenAPI documentation
+- [x] DTOs
+- [x] Bean Validation
+- [x] Problem Details
+- [x] Pagination
+- [x] Filtering
+- [x] Sorting
+- [x] Authorization
+- [x] Idempotency
+- [x] Audit trail
+- [x] OpenAPI documentation
 
 ## Testing
 
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] Testcontainers
-- [ ] Security tests
-- [ ] IDOR tests
-- [ ] Concurrency tests
-- [ ] API tests
-- [ ] OIDC tests
-- [ ] E2E workflow test
-- [ ] `mvn clean verify` green
+- [x] Unit tests
+- [x] Integration tests
+- [x] Testcontainers
+- [x] Security tests
+- [x] IDOR tests
+- [x] Concurrency tests
+- [x] API tests
+- [x] OIDC tests
+- [x] E2E workflow test
+- [x] `mvn clean verify` green
 
 ## Observability
 
-- [ ] Actuator
-- [ ] Micrometer
-- [ ] Prometheus
-- [ ] Structured JSON logs
-- [ ] Trace IDs
-- [ ] Request/correlation IDs
-- [ ] Business metrics
+- [x] Actuator
+- [x] Micrometer
+- [x] Prometheus
+- [x] Structured JSON logs
+- [x] Trace IDs
+- [x] Request/correlation IDs
+- [x] Business metrics
 
 ## Frontend
 
-- [ ] Shared design system
-- [ ] OAuth2/OIDC + PKCE
-- [ ] Task Management UI
-- [ ] KPI UI
-- [ ] Role-aware navigation
-- [ ] Loading states
-- [ ] Empty states
-- [ ] Error states
-- [ ] Charts
+- [x] Shared design system
+- [x] OAuth2/OIDC + PKCE
+- [x] Task Management UI
+- [x] KPI UI
+- [x] Role-aware navigation
+- [x] Loading states
+- [x] Empty states
+- [x] Error states
+- [x] Charts
 
 ## DevOps
 
-- [ ] Multi-stage Dockerfiles
-- [ ] Non-root containers
-- [ ] Health checks
-- [ ] Docker Compose
-- [ ] Persistent PostgreSQL volumes
-- [ ] Environment-driven configuration
-- [ ] Full-stack startup
-- [ ] Frontend hosting / reverse proxy
+- [x] Multi-stage Dockerfiles
+- [x] Non-root containers
+- [x] Health checks
+- [x] Docker Compose
+- [x] Persistent PostgreSQL volumes
+- [x] Environment-driven configuration
+- [x] Full-stack startup
+- [x] Frontend hosting / reverse proxy
 
 ## Documentation
 
-- [ ] Architecture
-- [ ] Security
-- [ ] Database
-- [ ] API
-- [ ] Deployment
-- [ ] Root README
-- [ ] Service READMEs
-- [ ] Development seed documentation
-- [ ] Architectural decisions documented
+- [x] Architecture
+- [x] Security
+- [x] Database
+- [x] API
+- [x] Deployment
+- [x] Root README
+- [x] Service READMEs
+- [x] Development seed documentation
+- [x] Architectural decisions documented
 
 ```
 

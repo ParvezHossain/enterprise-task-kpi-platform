@@ -183,3 +183,32 @@ other client IDs while preserving their remaining settings. This also protects
 against an incorrectly stored third-party consent-opt-out flag. Framework consent
 records continue to use `oauth2_authorization_consent`; local session logout does
 not delete those records or other clients' authorization grants.
+
+
+## Remaining migrations and read model
+Auth V3 adds database-managed created_at/updated_at to users/roles/permissions.
+BEFORE UPDATE triggers maintain updated_at. Existing V1/V2 and seed migrations
+remain unchanged.
+
+Task V4 adds task_command_keys with a composite scope_hash/command_key primary key,
+canonical request hash, serialized response and expiry index. A unique insert
+serializes duplicate claims without a transaction-aborting uniqueness exception.
+Successful results live at least 24 hours; cleanup deletes at most 500 expired rows.
+The task_audit_log remains SELECT/INSERT-only for runtime access. CREATED metadata
+contains the validated request ID; history never exposes tokens.
+
+KPI V1 creates kpi_sync_state (one row) and generation-scoped metric_tasks with
+employee/team/date indexes. V2 adds creation_request_id for originating-request
+correlation. The projection stores only metric DTO fields, never task descriptions.
+The active generation is published after a complete sweep. A 330-second lease
+bounds multi-instance refresh ownership; the sweep itself is capped at five minutes.
+Inactive/staging cleanup is bounded and excludes active/in-progress generations.
+Aggregate reads use repeatable-read transactions, preserving one generation even
+during publication/cleanup. Employee/team/date indexes support scoped GROUP BY
+queries and capped rankings; no entity collection aggregation or N+1 loading.
+
+Local initialization creates three databases and six distinct migration/runtime
+roles. Auth runtime registered-client access remains read-only; explicitly configured
+machine-client startup provisioning uses the Flyway migration connection.
+Generated local fixture SQL runs only through the explicit dev-guarded seed tool.
+Do not change already-applied migrations or use ddl-auto=update.

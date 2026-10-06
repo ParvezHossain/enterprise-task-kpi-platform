@@ -49,6 +49,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+@org.springframework.context.annotation.Import(ResourceServerIT.FailureFixtures.class)
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ResourceServerIT {
@@ -66,6 +67,7 @@ class ResourceServerIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired private org.springframework.context.ApplicationContext context;
 
     @AfterAll
     static void stopJwkServer() {
@@ -307,7 +309,7 @@ class ResourceServerIT {
         assertThat(completed.body()).contains("\"status\":\"COMPLETED\"", "\"version\":4");
 
         HttpResponse<String> closed = post(token(ISSUER, "task-management", Instant.now().plusSeconds(60),
-            List.of("PROJECT_MANAGER")), "/api/v1/tasks/" + workflow.taskId() + "/close", "{\"version\":4}");
+            List.of("PROJECT_MANAGER"),workflow.projectManagerId().toString()), "/api/v1/tasks/" + workflow.taskId() + "/close", "{\"version\":4}");
         assertThat(closed.statusCode()).isEqualTo(200);
         assertThat(closed.body()).contains("\"status\":\"CLOSED\"", "\"version\":5");
         }
@@ -557,6 +559,154 @@ class ResourceServerIT {
         return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    @Test
+    void identicalKeyReplaysOneCommittedTransitionAndAuditEvent() throws Exception {
+        TaskWorkflow workflow=createDraftTask();String key=UUID.randomUUID().toString();
+        String path="/api/v1/tasks/"+workflow.taskId()+"/approve";
+        var first=keyPost(leaderToken(workflow),path,"{\"version\":0}",key);
+        var replay=keyPost(leaderToken(workflow),path,"{\"version\":0}",key);
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(replay.body()).isEqualTo(first.body());
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM task_audit_log WHERE task_id=? AND action='APPROVED'",Long.class,workflow.taskId())).isEqualTo(1);
+        assertThat(keyPost(leaderToken(workflow),path,"{\"version\":1}",key).statusCode()).isEqualTo(409);
+        assertThat(keyPost(leaderToken(workflow),path,"{\"version\":0}",null).statusCode()).isEqualTo(400);
+        jdbcTemplate.update("DELETE FROM team_leaderships WHERE team_id=? AND user_id=?",workflow.teamId(),workflow.leaderId());
+        assertThat(keyPost(leaderToken(workflow),path,"{\"version\":0}",key).statusCode()).isEqualTo(403);
+    }
+    @Test
+    void persistedIdempotencyResponseReplaysThroughFreshCommandInstance() throws Exception {
+        TaskWorkflow workflow=createDraftTask();String key=UUID.randomUUID().toString(),jwt=leaderToken(workflow);
+        var first=keyPost(jwt,"/api/v1/tasks/"+workflow.taskId()+"/approve",new tools.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("version",0)),key);
+        assertThat(first.statusCode()).isEqualTo(200);
+        var json=context.getBean(tools.jackson.databind.ObjectMapper.class);
+        var fresh=new com.parvez.task.service.IdempotentTaskCommands(jdbcTemplate,json,
+            context.getBean(com.parvez.task.service.TaskCommandService.class),
+            context.getBean(com.parvez.task.persistence.TaskRepository.class),
+            context.getBean(com.parvez.task.security.CurrentTaskActorProvider.class),
+            context.getBean(com.parvez.task.authorization.TaskAuthorizationPolicy.class));
+        var transaction=new org.springframework.transaction.support.TransactionTemplate(context.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+        var decoded=context.getBean(org.springframework.security.oauth2.jwt.JwtDecoder.class).decode(jwt);
+        var replay=transaction.execute(status->fresh.execute(decoded,workflow.taskId(),"approve",key,0,null));
+        assertThat(replay).isEqualTo(json.readValue(first.body(),com.parvez.task.web.TaskResponse.class));
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM task_audit_log WHERE task_id=? AND action='APPROVED'",Long.class,workflow.taskId())).isEqualTo(1);
+    }
+    @Test
+    void concurrentIdenticalKeysCommitExactlyOnce() throws Exception {
+        TaskWorkflow workflow=createDraftTask();String key=UUID.randomUUID().toString();
+        String path="/api/v1/tasks/"+workflow.taskId()+"/approve";String jwt=leaderToken(workflow);
+        CountDownLatch ready=new CountDownLatch(2),start=new CountDownLatch(1);
+        try(ExecutorService executor=Executors.newFixedThreadPool(2)) {
+            java.util.concurrent.Callable<HttpResponse<String>> operation=()->{ready.countDown();if(!start.await(10,TimeUnit.SECONDS)) throw new IllegalStateException();return keyPost(jwt,path,"{\"version\":0}",key);};
+            Future<HttpResponse<String>> first=executor.submit(operation),second=executor.submit(operation);
+            assertThat(ready.await(10,TimeUnit.SECONDS)).isTrue();start.countDown();
+            var one=first.get(15,TimeUnit.SECONDS);var two=second.get(15,TimeUnit.SECONDS);
+            assertThat(one.statusCode()).isEqualTo(200);assertThat(two.statusCode()).isEqualTo(200);assertThat(two.body()).isEqualTo(one.body());
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM task_audit_log WHERE task_id=? AND action='APPROVED'",Long.class,workflow.taskId())).isEqualTo(1);
+    }
+    @Test
+    void failedCommandRollsBackKeyAndExpiredReplayUsesDomainRules() throws Exception {
+        TaskWorkflow workflow=createDraftTask();String key=UUID.randomUUID().toString();String path="/api/v1/tasks/"+workflow.taskId()+"/approve";
+        assertThat(keyPost(leaderToken(workflow),path,"{\"version\":9}",key).statusCode()).isEqualTo(409);
+        assertThat(keyPost(leaderToken(workflow),path,"{\"version\":0}",key).statusCode()).isEqualTo(200);
+        jdbcTemplate.update("UPDATE task_command_keys SET expires_at=CURRENT_TIMESTAMP-INTERVAL '1 day' WHERE command_key=?",key);
+        assertThat(keyPost(leaderToken(workflow),path,"{\"version\":0}",key).statusCode()).isEqualTo(409);
+    }
+    @Test
+    void fullLifecycleWritesImmutableHistoryAndBusinessMetrics() throws Exception {
+        TaskWorkflow workflow=createAssignedTask();
+        assertThat(patch(employeeToken(workflow.employeeTwoId()),workflow.taskId(),statusRequest("IN_PROGRESS",2)).statusCode()).isEqualTo(200);
+        assertThat(patch(employeeToken(workflow.employeeTwoId()),workflow.taskId(),statusRequest("COMPLETED",3)).statusCode()).isEqualTo(200);
+        String manager=token(ISSUER,"task-management",Instant.now().plusSeconds(60),List.of("PROJECT_MANAGER"),workflow.projectManagerId().toString());
+        assertThat(keyPost(manager,"/api/v1/tasks/"+workflow.taskId()+"/close","{\"version\":4}",UUID.randomUUID().toString()).statusCode()).isEqualTo(200);
+        assertThat(jdbcTemplate.queryForList("SELECT action FROM task_audit_log WHERE task_id=? ORDER BY occurred_at",String.class,workflow.taskId())).containsExactly("CREATED","APPROVED","ASSIGNED","STARTED","COMPLETED","CLOSED");
+        assertThat(jdbcTemplate.queryForObject("SELECT completed_at IS NOT NULL AND started_at IS NOT NULL AND closed_at IS NOT NULL FROM tasks WHERE id=?",Boolean.class,workflow.taskId())).isTrue();
+        assertThat(java.util.Arrays.stream(com.parvez.task.persistence.TaskAuditLogRepository.class.getMethods()).map(java.lang.reflect.Method::getName)).noneMatch(name->name.startsWith("delete")||name.startsWith("save"));
+        var metrics=get(manager,"/actuator/prometheus");assertThat(metrics.statusCode()).isEqualTo(200);assertThat(metrics.body()).contains("tasks_total","tasks_completed_total","tasks_overdue");
+    }
+    @Test
+    void correlationCorsAndSecurityErrorsAreConsistent() throws Exception {
+        String id=UUID.randomUUID().toString();
+        var response=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1/tasks")).header("X-Request-ID",id).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(401);assertThat(response.body()).contains("\"status\":401","\"instance\":\"/api/v1/tasks\"");
+        assertThat(response.headers().firstValue("X-Request-ID")).contains(id);
+        assertThat(response.headers().firstValue("Content-Security-Policy")).isPresent();
+        var preflight=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1/tasks")).header("Origin","http://127.0.0.1:8080").header("Access-Control-Request-Method","POST").method("OPTIONS",HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(preflight.statusCode()).isEqualTo(200);assertThat(preflight.headers().firstValue("Access-Control-Allow-Origin")).contains("http://127.0.0.1:8080");
+        var forbidden=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1/tasks")).header("Origin","https://evil.example").header("Access-Control-Request-Method","POST").method("OPTIONS",HttpRequest.BodyPublishers.noBody()).build(),HttpResponse.BodyHandlers.ofString());
+        assertThat(forbidden.statusCode()).isEqualTo(403);assertThat(forbidden.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+    }
+    @Test
+    void auditRuntimePrivilegesBlockUpdatesAndDeletes() throws Exception {
+        String role="audit_test_"+UUID.randomUUID().toString().replace("-","");
+        jdbcTemplate.execute("CREATE ROLE "+role);
+        jdbcTemplate.execute("GRANT USAGE ON SCHEMA public TO "+role);
+        jdbcTemplate.execute("GRANT SELECT, INSERT ON task_audit_log TO "+role);
+        try(var connection=java.sql.DriverManager.getConnection(POSTGRES.getJdbcUrl(),POSTGRES.getUsername(),POSTGRES.getPassword());var statement=connection.createStatement()) {
+            statement.execute("SET ROLE "+role);
+            try {
+                assertThatThrownBy(()->statement.executeUpdate("UPDATE task_audit_log SET action='TAMPERED'")).isInstanceOf(java.sql.SQLException.class);
+                assertThatThrownBy(()->statement.executeUpdate("DELETE FROM task_audit_log")).isInstanceOf(java.sql.SQLException.class);
+            } finally { statement.execute("RESET ROLE"); }
+        } finally { jdbcTemplate.execute("DROP OWNED BY "+role);jdbcTemplate.execute("DROP ROLE "+role); }
+    }
+    @Test
+    void titleSearchEscapesWildcardsAndKeepsCreatorScope() throws Exception {
+        TaskWorkflow workflow=createDraftTask();
+        String jwt=token(ISSUER,"task-management",Instant.now().plusSeconds(60),List.of("PROJECT_MANAGER"),workflow.projectManagerId().toString());
+        assertThat(get(jwt,"/api/v1/tasks?createdBy="+workflow.projectManagerId()+"&title=Workflow").body()).contains("\"totalElements\":1");
+        assertThat(get(jwt,"/api/v1/tasks?createdBy="+workflow.projectManagerId()+"&title=%25").body()).contains("\"totalElements\":0");
+    }
+
+    @Test
+    void machineFeedAcceptsArrayScopesAndRejectsHumanOrMutationAccess() throws Exception {
+        var key=new RSAKey.Builder((RSAPublicKey)SIGNING_KEYS.getPublic()).privateKey((RSAPrivateKey)SIGNING_KEYS.getPrivate()).keyID("integration-key").build();
+        var encoder=new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
+        var claims=JwtClaimsSet.builder().issuer(ISSUER).subject("kpi-sync").audience(List.of("task-management")).issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(60)).claim("scope",List.of("task.metrics.read")).claim("roles",List.of()).build();
+        String jwt=encoder.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).keyId("integration-key").build(),claims)).getTokenValue();
+        var feed=get(jwt,"/internal/metrics/tasks?size=10000");
+        assertThat(feed.statusCode()).isEqualTo(200);assertThat(feed.body()).contains("\"upperId\"","\"nextCursor\"").doesNotContain("description");
+        assertThat(get(token(ISSUER,"task-management",Instant.now().plusSeconds(60),List.of("ADMIN")),"/internal/metrics/tasks").statusCode()).isEqualTo(403);
+        TaskWorkflow workflow=createDraftTask();
+        assertThat(post(jwt,taskRequest("Machine mutation","HIGH",UUID.randomUUID(),workflow.teamId())).statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void unexpectedAndPersistenceErrorsRemainSanitizedProblemDetails() throws Exception {
+        String admin=token(ISSUER,"task-management",Instant.now().plusSeconds(60),List.of("ADMIN"));
+        assertThat(get(admin,"/api/v1/no-such-route").statusCode()).isEqualTo(404);
+        assertThat(keyPost(admin,"/api/v1/tasks/me","{}",UUID.randomUUID().toString()).statusCode()).isEqualTo(405);
+        for(String failure:List.of("unexpected","integrity","optimistic")) {
+            var response=get(admin,"/test/errors/"+failure);
+            assertThat(response.statusCode()).isEqualTo(failure.equals("unexpected")?500:409);
+            var object=new tools.jackson.databind.ObjectMapper().readTree(response.body());
+            assertThat(object.size()).isEqualTo(5);
+            assertThat(response.body()).doesNotContain("private-value","SELECT","TaskEntity","stackTrace");
+            assertThat(response.headers().firstValue("Content-Type").orElseThrow()).contains("application/problem+json");
+        }
+    }
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods=false)
+    static class FailureFixtures {
+        @org.springframework.context.annotation.Bean FailureController failureController(){return new FailureController();}
+    }
+    @org.springframework.web.bind.annotation.RestController
+    static class FailureController {
+        @org.springframework.web.bind.annotation.GetMapping("/test/errors/{failure}")
+        Object fail(@org.springframework.web.bind.annotation.PathVariable String failure) {
+            switch(failure) {
+                case "integrity" -> throw new DataIntegrityViolationException("SELECT private-value");
+                case "optimistic" -> throw new org.springframework.orm.ObjectOptimisticLockingFailureException("TaskEntity private-value",UUID.randomUUID());
+                default -> throw new IllegalStateException("private-value");
+            }
+        }
+    }
+
+    private HttpResponse<String> keyPost(String jwt,String path,String body,String key) throws Exception {
+        var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).header("Authorization","Bearer "+jwt).header("Content-Type","application/json");
+        if(key!=null) request.header("Idempotency-Key",key);
+        return HttpClient.newHttpClient().send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());
+    }
+
     private HttpResponse<String> post(String token, String body) throws Exception {
         return post(token, "/api/v1/tasks", body);
     }
@@ -565,6 +715,7 @@ class ResourceServerIT {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "application/json")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
@@ -701,6 +852,7 @@ class ResourceServerIT {
                         "http://127.0.0.1:" + port + "/api/v1/tasks/" + taskId + "/status"))
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "application/json")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());

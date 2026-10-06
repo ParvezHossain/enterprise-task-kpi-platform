@@ -28,6 +28,8 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 
 auth:
+  kpi-sync:
+    secret-hash: ${AUTH_KPI_SYNC_SECRET_HASH:}
   signing:
     issuer: ${AUTH_ISSUER}
     private-key: ${AUTH_RSA_PRIVATE_KEY}

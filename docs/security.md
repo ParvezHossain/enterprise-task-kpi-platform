@@ -250,3 +250,51 @@ authenticated subject with client filters in SQL, so an `assignedTo` parameter
 cannot widen visibility. Detail and history reads use the same role/team/assignee
 policy, including employee 404 concealment. New tasks derive `createdBy` from the
 authenticated UUID subject; it is not accepted from the creation request.
+
+
+## Remaining-feature security
+Browser and bearer API chains have distinct purposes. Task/KPI resource APIs
+accept Authorization bearer credentials and create no authentication sessions,
+so CSRF is disabled there: browsers do not attach bearer credentials automatically.
+The bff chain uses browser cookies and keeps CSRF enabled. Unsafe proxy requests
+and local logout require the session CSRF token from /bff/session. JavaScript
+never receives access/refresh tokens or client secrets.
+
+TASK_SESSION and KPI_SESSION are HttpOnly/SameSite=Lax. Production must enable
+Secure cookies and TLS. Sessions and authorized clients are local to each BFF
+instance. Expired access tokens are refreshed server-side; refresh failure
+requires login. BFF logout destroys its session but preserves independent Auth
+session/grant state, consistent with the existing logout/revocation boundary.
+
+Task CORS uses explicit configurable origins, intentional methods/headers and
+credentials=false. The deployed browser uses same-origin BFF paths. Frontend
+role gating is navigation only; Task and KPI services enforce roles/resources.
+
+Task audit writes share the transition transaction; the runtime has no audit
+UPDATE/DELETE permission or repository mutation API. Command replay rechecks
+current roles/managed teams before returning stored data. Keys are scoped to
+issuer/subject/client/path and expire after the documented 24-hour replay window.
+
+KPI's confidential kpi-sync client has only task.metrics.read, a Task audience
+and no human roles. Task's private feed checks both scope and machine subject.
+This identity cannot use role-protected business commands. KPI never opens Task's
+database. Current leadership checks are authenticated live Task calls and fail
+closed during outages. Employees see only their own aggregates; Admin/PM can view
+company metrics; Team Leaders need an authorized team for broader views.
+
+Auth login limits are configurable, address-scoped and memory-bounded. They are
+per-instance, reset on restart and do not trust caller forwarding headers.
+Horizontal deployment should use an ingress/shared Redis limiter. CSP, nosniff
+and Referrer-Policy are explicit; Spring HSTS remains conditional on HTTPS.
+Auth generated login permits inline styles only; deployed app scripts/styles
+are local and require no unsafe-inline CSP allowance.
+
+Incoming correlation IDs accept only 1–64 ASCII letters/digits/hyphens. Invalid
+values are replaced with generated UUIDs; MDC is restored in finally blocks.
+Audit and metric DTOs carry the originating creation ID, allowing async KPI logs
+to link to the browser request. Never enable password/token/SQL bind logging.
+
+Nginx access and request-error logs are disabled because upstream error messages
+can include OAuth callback query strings. Backend structured completion logs and
+container health checks provide request/status and availability diagnostics.
+Do not enable raw proxy request logging on OAuth paths in production.

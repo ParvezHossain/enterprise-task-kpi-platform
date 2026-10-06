@@ -1,13 +1,13 @@
 # Enterprise Task & KPI Platform
 
-The application lives in [`enterprise-platform/`](enterprise-platform/README.md).
-It contains three independent Maven backend projects and two static frontend
-placeholders. The [auth server](enterprise-platform/auth-server/README.md) boots
-against PostgreSQL and exposes public health/info and authenticated metrics
-endpoints. Task Management now has its resource-server bootstrap, initial schema,
-domain lifecycle, authorization policy, and [task query APIs](docs/api.md) for
-my/team/all tasks, details and paginated history. Queries support server-side
-filters and a configurable page-size cap; KPI remains a skeleton.
+Three independent Java 25 / Spring Boot 4 services provide OAuth/OIDC authentication,
+task lifecycle management and scoped KPI reporting. Two HTML/JavaScript frontends
+use BFF sessions, shared Tailwind styles and Chart.js.
+
+Start with [complete local setup](docs/development.md#complete-local-platform):
+verify the modules, generate private development credentials, run Compose with
+health checks, and execute the explicit seed command. Task UI runs on
+http://127.0.0.1:8080; KPI UI on http://127.0.0.1:8081.
 
 - [Directory structure and build commands](enterprise-platform/README.md)
 - [Repository contract](AGENTS.md)
@@ -15,6 +15,8 @@ filters and a configurable page-size cap; KPI remains a skeleton.
 - [Architecture](docs/architecture.md)
 - [API, registration, and error contracts](docs/api.md)
 - [Security](docs/security.md)
+- [Deployment](docs/deployment.md)
+- [Engineering review](docs/engineering-review.md)
 - [Login, OIDC and logout example requests](requests/auth.http)
 - [Ticket backlog](docs/tickets/backlog.md)
 

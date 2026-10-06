@@ -37,7 +37,7 @@ public class AuthorizationServerConfig {
             http.securityMatcher(server.getEndpointsMatcher());
             server.oidc(Customizer.withDefaults());
         });
-        return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+        return http.headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"))).authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .oauth2ResourceServer(resource -> resource.jwt(Customizer.withDefaults()))
                 .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
                         new LoginUrlAuthenticationEntryPoint("/login"), new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
@@ -66,6 +66,12 @@ public class AuthorizationServerConfig {
     @Bean
     OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer(IdentityAuthenticationService identities) {
         return context -> {
+            if(org.springframework.security.oauth2.core.AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())) {
+                if(!"kpi-sync".equals(context.getRegisteredClient().getClientId()) || !context.getAuthorizedScopes().equals(java.util.Set.of("task.metrics.read"))) throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_SCOPE);
+                context.getClaims().subject("kpi-sync").audience(java.util.List.of("task-management")).claim("roles",new ArrayList<String>());
+                return;
+            }
+
             IdentityAuthenticationService.Identity identity;
             try {
                 // Reload on refresh: don't grant stale roles or tokens to a disabled account.
